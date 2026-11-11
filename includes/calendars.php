@@ -46,6 +46,8 @@ function calsys_public_notice() {
         'room_request_sent' => __('Your room request has been sent to staff for approval.', 'community-calendar-study-rooms'),
         'room_booking_saved' => __('The room booking has been added to the calendar.', 'community-calendar-study-rooms'),
         'room_conflict' => __('That room and time are already requested or booked. Please choose another time.', 'community-calendar-study-rooms'),
+        'outside_hours' => __('The requested time is outside opening hours or on a closed day.', 'community-calendar-study-rooms'),
+        'room_booking_saved_outside_hours' => __('Staff booking confirmed, but it is outside opening hours.', 'community-calendar-study-rooms'),
         'invalid_room_request' => __('Please check the room request details and try again.', 'community-calendar-study-rooms'),
         'equipment_conflict' => __('The requested equipment is unavailable for that time or quantity. Please choose another time or quantity.', 'community-calendar-study-rooms'),
         'invalid' => __('Please check the submitted information and try again.', 'community-calendar-study-rooms'),
@@ -280,6 +282,7 @@ function calsys_render_calendar($title, $events, $month, $calendar_type) {
                                                 data-start="<?php echo esc_attr(str_replace(' ', 'T', substr($event->starts_at, 0, 16))); ?>"
                                                 data-end="<?php echo esc_attr(str_replace(' ', 'T', substr($event->ends_at, 0, 16))); ?>"
                                                 data-capacity="<?php echo esc_attr($event->capacity ?? 0); ?>"
+                                                data-show-registration-counts="<?php echo esc_attr(!empty($event->show_registration_counts) ? '1' : '0'); ?>"
                                                 data-category="<?php echo esc_attr($event->category ?? 'adult'); ?>"
                                                 data-registration-fields="<?php echo esc_attr(wp_json_encode(calsys_decode_registration_fields($event->registration_fields ?? ''))); ?>"
                                                 data-registration-enabled="<?php echo esc_attr(!empty($event->registration_enabled) ? '1' : '0'); ?>"
@@ -436,7 +439,7 @@ function calsys_event_calendar_view($dialog_events = array(), $calendar_mode = '
         $category_sql = calsys_event_category_sql();
         $events = $wpdb->get_results($wpdb->prepare(
             "SELECT e.id, e.title, e.description, e.starts_at, e.ends_at, e.capacity, e.status, e.category, e.registration_fields,
-            e.registration_enabled, e.registration_recipients, e.image_id,
+            e.registration_enabled, e.registration_recipients, e.image_id, e.show_registration_counts,
             (SELECT b.room_id FROM " . calsys_table('bookings') . " b WHERE b.source_type = 'event' AND b.source_id = e.id ORDER BY b.id ASC LIMIT 1) AS room_id,
             0 AS all_day, 'event' AS calendar_type,
             (SELECT COUNT(*) FROM " . calsys_table('registrations') . " r WHERE r.event_id = e.id) AS registration_count
@@ -468,7 +471,7 @@ function calsys_event_calendar_view($dialog_events = array(), $calendar_mode = '
     foreach ($events as $event) {
         $categories = calsys_event_categories();
         $event->category_label = $categories[$event->category] ?? '';
-        $event->calendar_detail = calsys_show_public_registration_counts()
+        $event->calendar_detail = calsys_show_public_registration_counts($event)
             ? sprintf(
                 _n('%d registered', '%d registered', (int) $event->registration_count, 'community-calendar-study-rooms'),
                 (int) $event->registration_count
@@ -752,7 +755,7 @@ function calsys_events_shortcode() {
             if ($event->description !== '') {
                 echo '<div class="calsys-event-description">' . wpautop(wp_kses_post($event->description)) . '</div>';
             }
-            if (calsys_show_public_registration_counts() && $capacity > 0) {
+            if (calsys_show_public_registration_counts($event) && $capacity > 0) {
                 echo '<p>' . esc_html(sprintf(__('%1$d of %2$d places registered', 'community-calendar-study-rooms'), (int) $event->registration_count, $capacity)) . '</p>';
             }
             if (!$registration_settings['enabled'] || empty($event->registration_enabled)) {

@@ -73,8 +73,7 @@ function calsys_valid_booking_input($room_id, $name, $email, $date, $start, $end
                 return false;
             }
         }
-        if ($rules['opening_time'] !== '' &&
-            ($start < $rules['opening_time'] || $end > $rules['closing_time'])) {
+        if (!calsys_room_is_within_hours($date, $start, $end, $rules)) {
             return false;
         }
     }
@@ -105,6 +104,48 @@ function calsys_booking_conflict($room_id, $date, $start, $end, $exclude_id = 0)
     }
     return (int) $conflicts > 0;
 }
+
+/** Returns opening hours and a privacy-preserving room conflict check. */
+function calsys_check_room_availability() {
+    check_ajax_referer('calsys_room_availability', 'nonce');
+    $date = isset($_POST['date']) && is_string($_POST['date']) ? wp_unslash($_POST['date']) : '';
+    $hours = calsys_room_hours_for_date($date);
+    if ($hours === false) {
+        wp_send_json_error(array('message' => __('Please choose a valid date.', 'community-calendar-study-rooms')), 400);
+    }
+    $room = isset($_POST['room_id']) && is_string($_POST['room_id']) ? wp_unslash($_POST['room_id']) : '';
+    $start = isset($_POST['start']) && is_string($_POST['start']) ? wp_unslash($_POST['start']) : '';
+    $end = isset($_POST['end']) && is_string($_POST['end']) ? wp_unslash($_POST['end']) : '';
+    $conflict = null;
+    if ($room !== '' && $start !== '' && $end !== '') {
+        if (!ctype_digit($room) || (int) $room < 1 ||
+            !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $start) ||
+            !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $end) || $start >= $end) {
+            wp_send_json_error(array('message' => __('Choose a valid room and time range.', 'community-calendar-study-rooms')), 400);
+        }
+        global $wpdb;
+        $active = $wpdb->get_var($wpdb->prepare("SELECT id FROM " . calsys_table('rooms') . " WHERE id = %d AND active = 1", (int) $room));
+        if ($wpdb->last_error) {
+            error_log('CommonsCal: unable to check room availability: ' . $wpdb->last_error);
+            wp_send_json_error(array('message' => __('Room availability could not be checked. Please try again.', 'community-calendar-study-rooms')), 500);
+        }
+        if (!$active) {
+            wp_send_json_error(array('message' => __('That room is unavailable. Please choose another.', 'community-calendar-study-rooms')), 400);
+        }
+        $exclude_id = current_user_can('manage_calendar_system') ? absint($_POST['booking_id'] ?? 0) : 0;
+        $conflict = calsys_booking_conflict((int) $room, $date, $start . ':00', $end . ':00', $exclude_id);
+        if ($conflict === null) {
+            error_log('CommonsCal: unable to check room conflicts: ' . $wpdb->last_error);
+            wp_send_json_error(array('message' => __('Room availability could not be checked. Please try again.', 'community-calendar-study-rooms')), 500);
+        }
+    }
+    wp_send_json_success(array(
+        'hours' => array('mode' => $hours['mode'], 'open' => $hours['open'], 'close' => $hours['close']),
+        'conflict' => $conflict,
+    ));
+}
+add_action('wp_ajax_calsys_room_availability', 'calsys_check_room_availability');
+add_action('wp_ajax_nopriv_calsys_room_availability', 'calsys_check_room_availability');
 
 /** Splits a datetime range into daily intervals suitable for room reservations. */
 function calsys_schedule_segments($starts_at, $ends_at) {

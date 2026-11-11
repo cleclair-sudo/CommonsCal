@@ -35,6 +35,7 @@ function calsys_activate() {
         starts_at datetime NOT NULL,
         ends_at datetime NOT NULL,
         capacity int(10) unsigned NOT NULL DEFAULT 0,
+        show_registration_counts tinyint(1) NULL DEFAULT NULL,
         category varchar(40) NOT NULL DEFAULT 'adult',
         registration_fields longtext NOT NULL,
         registration_enabled tinyint(1) NOT NULL DEFAULT 0,
@@ -135,6 +136,18 @@ function calsys_activate() {
         $enabled_existing_events = $wpdb->query("UPDATE " . calsys_table('events') . " SET registration_enabled = 1");
         if ($enabled_existing_events === false) {
             error_log('CommonsCal: unable to preserve event registration settings during database upgrade: ' . $wpdb->last_error);
+            return;
+        }
+    }
+
+    if ($previous_db_version < 9) {
+        $show_counts = (int) calsys_get_settings()['calendar_display']['show_registration_counts'];
+        $migrated = $wpdb->query($wpdb->prepare(
+            "UPDATE " . calsys_table('events') . " SET show_registration_counts = %d WHERE show_registration_counts IS NULL",
+            $show_counts
+        ));
+        if ($migrated === false) {
+            error_log('CommonsCal: unable to preserve event count visibility during database upgrade: ' . $wpdb->last_error);
             return;
         }
     }
@@ -598,6 +611,18 @@ function calsys_get_settings() {
         $opening_time = '';
         $closing_time = '';
     }
+    $legacy_hours = $opening_time === ''
+        ? array('mode' => 'unrestricted', 'open' => '', 'close' => '')
+        : array('mode' => 'open', 'open' => $opening_time, 'close' => $closing_time);
+    $legacy_week = array_fill(0, 7, $legacy_hours);
+    $schedule = calsys_normalize_room_schedule(
+        $rules['weekly_hours'] ?? $legacy_week,
+        $rules['holiday_hours'] ?? array()
+    );
+    if ($schedule === false) {
+        error_log('CommonsCal: invalid saved room opening hours; public bookings are closed until corrected.');
+        $schedule = array('weekly' => array_fill(0, 7, array('mode' => 'closed', 'open' => '', 'close' => '')), 'holidays' => array());
+    }
     $settings['booking_rules'] = array(
         'max_advance_days' => min(730, max(0, absint($rules['max_advance_days'] ?? $defaults['booking_rules']['max_advance_days']))),
         'min_notice_hours' => min(8760, max(0, absint($rules['min_notice_hours'] ?? $defaults['booking_rules']['min_notice_hours']))),
@@ -605,6 +630,8 @@ function calsys_get_settings() {
             ? absint($rules['time_increment'] ?? 0) : 0,
         'opening_time' => $opening_time,
         'closing_time' => $closing_time,
+        'weekly_hours' => $schedule['weekly'],
+        'holiday_hours' => $schedule['holidays'],
     );
     $settings['room_approval_required'] = isset($saved['room_approval_required'])
         ? (int) (bool) $saved['room_approval_required']
@@ -735,9 +762,9 @@ function calsys_event_registration_is_open($starts_at) {
 }
 
 /** Indicates whether public calendar entries should show registration counts. */
-function calsys_show_public_registration_counts() {
+function calsys_show_public_registration_counts($event) {
     return current_user_can('manage_calendar_system') ||
-        (bool) calsys_get_settings()['calendar_display']['show_registration_counts'];
+        !empty($event->show_registration_counts);
 }
 
 /** Indicates whether public calendar entries should show event categories. */

@@ -190,6 +190,19 @@ function calsys_admin_menu() {
 }
 add_action('admin_menu', 'calsys_admin_menu');
 
+/** Renders one holiday-hours exception row. */
+function calsys_holiday_hours_row($index, $holiday) {
+    ?>
+    <tr class="calsys-holiday-row">
+        <td><input type="date" name="holiday_hours[<?php echo esc_attr($index); ?>][date]" value="<?php echo esc_attr($holiday['date']); ?>" aria-label="<?php esc_attr_e('Holiday date', 'community-calendar-study-rooms'); ?>" required></td>
+        <td><label><input type="checkbox" name="holiday_hours[<?php echo esc_attr($index); ?>][annual]" value="1" <?php checked($holiday['annual']); ?>> <?php esc_html_e('Every year', 'community-calendar-study-rooms'); ?></label></td>
+        <td><select name="holiday_hours[<?php echo esc_attr($index); ?>][mode]" aria-label="<?php esc_attr_e('Holiday availability', 'community-calendar-study-rooms'); ?>"><option value="closed" <?php selected($holiday['mode'], 'closed'); ?>><?php esc_html_e('Closed', 'community-calendar-study-rooms'); ?></option><option value="open" <?php selected($holiday['mode'], 'open'); ?>><?php esc_html_e('Custom hours', 'community-calendar-study-rooms'); ?></option></select></td>
+        <td><input type="time" name="holiday_hours[<?php echo esc_attr($index); ?>][open]" value="<?php echo esc_attr($holiday['open']); ?>" aria-label="<?php esc_attr_e('Holiday opens', 'community-calendar-study-rooms'); ?>"> &ndash; <input type="time" name="holiday_hours[<?php echo esc_attr($index); ?>][close]" value="<?php echo esc_attr($holiday['close']); ?>" aria-label="<?php esc_attr_e('Holiday closes', 'community-calendar-study-rooms'); ?>"></td>
+        <td><button class="button calsys-remove-holiday" type="button"><?php esc_html_e('Remove', 'community-calendar-study-rooms'); ?></button></td>
+    </tr>
+    <?php
+}
+
 /** Renders the settings page for calendar colors, categories, and booking rules. */
 function calsys_admin_settings_page() {
     calsys_require_staff();
@@ -280,7 +293,7 @@ function calsys_admin_settings_page() {
 
             <section class="calsys-settings-card" id="calsys-settings-bookings">
             <h2><?php esc_html_e('Room booking rules', 'community-calendar-study-rooms'); ?></h2>
-            <p><?php esc_html_e('These limits apply to public room requests. Leave a limit at zero or opening hours blank to keep that rule unrestricted.', 'community-calendar-study-rooms'); ?></p>
+            <p><?php esc_html_e('These limits apply to public room requests. Staff may book outside opening hours, but will see a warning.', 'community-calendar-study-rooms'); ?></p>
             <table class="form-table" role="presentation"><tbody>
                 <tr><th scope="row"><label for="calsys-max-advance"><?php esc_html_e('Booking window', 'community-calendar-study-rooms'); ?></label></th>
                     <td><input id="calsys-max-advance" name="booking_rules[max_advance_days]" type="number" min="0" max="730" value="<?php echo esc_attr($settings['booking_rules']['max_advance_days']); ?>"> <?php esc_html_e('days ahead (0 = no limit)', 'community-calendar-study-rooms'); ?></td></tr>
@@ -292,14 +305,28 @@ function calsys_admin_settings_page() {
                             <option value="<?php echo esc_attr($value); ?>" <?php selected($settings['booking_rules']['time_increment'], $value); ?>><?php echo esc_html($label); ?></option>
                         <?php endforeach; ?>
                     </select><p class="description"><?php esc_html_e('Both start and end times must align to this increment.', 'community-calendar-study-rooms'); ?></p></td></tr>
-                <tr><th scope="row"><?php esc_html_e('Daily opening hours', 'community-calendar-study-rooms'); ?></th>
-                    <td><label for="calsys-opening-time"><?php esc_html_e('Opens', 'community-calendar-study-rooms'); ?></label> <input id="calsys-opening-time" name="booking_rules[opening_time]" type="time" value="<?php echo esc_attr($settings['booking_rules']['opening_time']); ?>">
-                        <label for="calsys-closing-time"><?php esc_html_e('Closes', 'community-calendar-study-rooms'); ?></label> <input id="calsys-closing-time" name="booking_rules[closing_time]" type="time" value="<?php echo esc_attr($settings['booking_rules']['closing_time']); ?>">
-                        <p class="description"><?php esc_html_e('Leave both blank for no daily time restriction. Overnight bookings are not supported by this rule.', 'community-calendar-study-rooms'); ?></p></td></tr>
                 <tr><th scope="row"><?php esc_html_e('Request approval', 'community-calendar-study-rooms'); ?></th>
                     <td><label><input name="room_approval_required" type="checkbox" value="1" <?php checked($settings['room_approval_required']); ?>> <?php esc_html_e('Require staff approval for public room requests', 'community-calendar-study-rooms'); ?></label>
                         <p class="description"><?php esc_html_e('When unchecked, valid public room requests are confirmed immediately.', 'community-calendar-study-rooms'); ?></p></td></tr>
             </tbody></table>
+            <h3><?php esc_html_e('Weekly opening hours', 'community-calendar-study-rooms'); ?></h3>
+            <p class="description"><?php esc_html_e('Set each day to unrestricted, closed, or open during specific hours. Public room requests must fit within these hours.', 'community-calendar-study-rooms'); ?></p>
+            <table class="widefat striped"><thead><tr><th><?php esc_html_e('Day', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Availability', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Opening and closing times', 'community-calendar-study-rooms'); ?></th></tr></thead><tbody>
+                <?php foreach (array(__('Sunday', 'community-calendar-study-rooms'), __('Monday', 'community-calendar-study-rooms'), __('Tuesday', 'community-calendar-study-rooms'), __('Wednesday', 'community-calendar-study-rooms'), __('Thursday', 'community-calendar-study-rooms'), __('Friday', 'community-calendar-study-rooms'), __('Saturday', 'community-calendar-study-rooms')) as $day => $day_label) : $hours = $settings['booking_rules']['weekly_hours'][$day]; ?>
+                <tr><th scope="row"><?php echo esc_html($day_label); ?></th><td><select name="weekly_hours[<?php echo esc_attr($day); ?>][mode]" aria-label="<?php echo esc_attr(sprintf(__('%s availability', 'community-calendar-study-rooms'), $day_label)); ?>">
+                    <option value="unrestricted" <?php selected($hours['mode'], 'unrestricted'); ?>><?php esc_html_e('Unrestricted', 'community-calendar-study-rooms'); ?></option>
+                    <option value="open" <?php selected($hours['mode'], 'open'); ?>><?php esc_html_e('Open', 'community-calendar-study-rooms'); ?></option>
+                    <option value="closed" <?php selected($hours['mode'], 'closed'); ?>><?php esc_html_e('Closed', 'community-calendar-study-rooms'); ?></option>
+                </select></td><td><input type="time" name="weekly_hours[<?php echo esc_attr($day); ?>][open]" value="<?php echo esc_attr($hours['open']); ?>" aria-label="<?php echo esc_attr(sprintf(__('%s opens', 'community-calendar-study-rooms'), $day_label)); ?>"> &ndash; <input type="time" name="weekly_hours[<?php echo esc_attr($day); ?>][close]" value="<?php echo esc_attr($hours['close']); ?>" aria-label="<?php echo esc_attr(sprintf(__('%s closes', 'community-calendar-study-rooms'), $day_label)); ?>"></td></tr>
+                <?php endforeach; ?>
+            </tbody></table>
+            <h3><?php esc_html_e('Holiday and special hours', 'community-calendar-study-rooms'); ?></h3>
+            <p class="description"><?php esc_html_e('Special dates override weekly hours. A specific date takes precedence over a yearly exception. Overnight hours are not supported.', 'community-calendar-study-rooms'); ?></p>
+            <table class="widefat striped"><thead><tr><th><?php esc_html_e('Date', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Repeat', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Availability', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Opening and closing times', 'community-calendar-study-rooms'); ?></th><th></th></tr></thead>
+                <tbody id="calsys-holiday-hours"><?php foreach ($settings['booking_rules']['holiday_hours'] as $index => $holiday) { calsys_holiday_hours_row($index, $holiday); } ?></tbody>
+            </table>
+            <p><button type="button" class="button" id="calsys-add-holiday"><?php esc_html_e('Add holiday or special date', 'community-calendar-study-rooms'); ?></button></p>
+            <input type="hidden" name="room_schedule_present" value="1">
             </section>
 
             <section class="calsys-settings-card" id="calsys-settings-registrations">
@@ -358,8 +385,7 @@ function calsys_admin_settings_page() {
                         <option value="next" <?php selected($settings['calendar_display']['initial_month'], 'next'); ?>><?php esc_html_e('Next month', 'community-calendar-study-rooms'); ?></option>
                     </select></td></tr>
                 <tr><th scope="row"><?php esc_html_e('Public event details', 'community-calendar-study-rooms'); ?></th>
-                    <td><label><input name="calendar_display[show_registration_counts]" type="checkbox" value="1" <?php checked($settings['calendar_display']['show_registration_counts']); ?>> <?php esc_html_e('Show attendee counts and capacity', 'community-calendar-study-rooms'); ?></label><br>
-                        <label><input name="calendar_display[show_category_labels]" type="checkbox" value="1" <?php checked($settings['calendar_display']['show_category_labels']); ?>> <?php esc_html_e('Show event category labels', 'community-calendar-study-rooms'); ?></label></td></tr>
+                    <td><label><input name="calendar_display[show_category_labels]" type="checkbox" value="1" <?php checked($settings['calendar_display']['show_category_labels']); ?>> <?php esc_html_e('Show event category labels', 'community-calendar-study-rooms'); ?></label></td></tr>
             </tbody></table>
             </section>
 
@@ -424,6 +450,7 @@ function calsys_admin_settings_page() {
                 <td><button class="button calsys-remove-category" type="button"><?php esc_html_e('Remove', 'community-calendar-study-rooms'); ?></button></td>
             </tr>
         </script>
+        <template id="calsys-holiday-template"><?php calsys_holiday_hours_row('INDEX', array('date' => '', 'annual' => 0, 'mode' => 'closed', 'open' => '', 'close' => '')); ?></template>
     </div>
     <?php
 }
@@ -533,8 +560,9 @@ function calsys_save_settings() {
     $max_advance_days = absint($posted_rules['max_advance_days'] ?? 0);
     $min_notice_hours = absint($posted_rules['min_notice_hours'] ?? 0);
     $time_increment = absint($posted_rules['time_increment'] ?? 0);
-    $opening_time = sanitize_text_field($posted_rules['opening_time'] ?? '');
-    $closing_time = sanitize_text_field($posted_rules['closing_time'] ?? '');
+    $old_settings = calsys_get_settings();
+    $opening_time = sanitize_text_field($posted_rules['opening_time'] ?? $old_settings['booking_rules']['opening_time']);
+    $closing_time = sanitize_text_field($posted_rules['closing_time'] ?? $old_settings['booking_rules']['closing_time']);
     $valid_increments = array(0, 5, 10, 15, 20, 30, 60);
     if ($max_advance_days > 730 || $min_notice_hours > 8760 ||
         !in_array($time_increment, $valid_increments, true) ||
@@ -542,6 +570,17 @@ function calsys_save_settings() {
         ($opening_time !== '' && (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $opening_time) ||
             !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $closing_time) || $opening_time >= $closing_time))) {
         calsys_admin_redirect('calsys-settings', 'settings_invalid');
+    }
+    if (isset($_POST['room_schedule_present'])) {
+        $schedule = calsys_normalize_room_schedule(
+            wp_unslash($_POST['weekly_hours'] ?? null),
+            wp_unslash($_POST['holiday_hours'] ?? array())
+        );
+        if ($_POST['room_schedule_present'] !== '1' || $schedule === false) {
+            calsys_admin_redirect('calsys-settings', 'settings_invalid');
+        }
+    } else {
+        $schedule = array('weekly' => $old_settings['booking_rules']['weekly_hours'], 'holidays' => $old_settings['booking_rules']['holiday_hours']);
     }
 
     $posted_registration = isset($_POST['event_registration']) && is_array($_POST['event_registration'])
@@ -603,7 +642,7 @@ function calsys_save_settings() {
     $posted_display = isset($_POST['calendar_display']) && is_array($_POST['calendar_display'])
         ? wp_unslash($_POST['calendar_display'])
         : array();
-    foreach (array('week_start_day', 'initial_month', 'show_registration_counts', 'show_category_labels') as $display_key) {
+    foreach (array('week_start_day', 'initial_month', 'show_category_labels') as $display_key) {
         if (isset($posted_display[$display_key]) && !is_scalar($posted_display[$display_key])) {
             calsys_admin_redirect('calsys-settings', 'settings_invalid');
         }
@@ -649,6 +688,8 @@ function calsys_save_settings() {
             'time_increment' => $time_increment,
             'opening_time' => $opening_time,
             'closing_time' => $closing_time,
+            'weekly_hours' => $schedule['weekly'],
+            'holiday_hours' => $schedule['holidays'],
         ),
         'room_approval_required' => isset($_POST['room_approval_required']) ? 1 : 0,
         'event_registration' => array(
@@ -672,7 +713,7 @@ function calsys_save_settings() {
         'calendar_display' => array(
             'week_start_day' => $week_start_day === 'site' ? 'site' : (int) $week_start_day,
             'initial_month' => $initial_month,
-            'show_registration_counts' => isset($posted_display['show_registration_counts']) ? 1 : 0,
+            'show_registration_counts' => $old_settings['calendar_display']['show_registration_counts'],
             'show_category_labels' => isset($posted_display['show_category_labels']) ? 1 : 0,
         ),
         'notifications' => array(
@@ -688,7 +729,6 @@ function calsys_save_settings() {
             'show_room_status' => isset($posted_privacy['show_room_status']) ? 1 : 0,
         ),
     );
-    $old_settings = calsys_get_settings();
     global $wpdb;
     $kept_in_use_type = false;
     foreach ($old_settings['staff_types'] as $key => $type) {
@@ -744,6 +784,9 @@ function calsys_admin_notice() {
         'denied' => __('Room request denied.', 'community-calendar-study-rooms'),
         'booking_saved' => __('Staff booking confirmed.', 'community-calendar-study-rooms'),
         'conflict' => __('That room and time conflict with another pending or approved booking.', 'community-calendar-study-rooms'),
+        'room_conflict' => __('That room and time are already requested or booked. Please choose another time.', 'community-calendar-study-rooms'),
+        'outside_hours' => __('The requested time is outside opening hours or on a closed day.', 'community-calendar-study-rooms'),
+        'room_booking_saved_outside_hours' => __('Staff booking confirmed, but it is outside opening hours.', 'community-calendar-study-rooms'),
         'invalid' => __('Please check the submitted information and try again.', 'community-calendar-study-rooms'),
         'invalid_room_request' => __('Please check the room request details and try again.', 'community-calendar-study-rooms'),
         'staff_event_saved' => __('Staff calendar entry saved.', 'community-calendar-study-rooms'),

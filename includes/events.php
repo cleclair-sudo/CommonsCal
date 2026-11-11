@@ -201,6 +201,18 @@ function calsys_save_event($frontend = false) {
         'registration_recipients' => wp_json_encode($registration_recipients),
         'recurrence_group' => $recurrence_group,
     );
+    $formats = array('%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%s', '%s');
+    if (isset($_POST['show_registration_counts_present'])) {
+        if ($_POST['show_registration_counts_present'] !== '1' ||
+            (isset($_POST['show_registration_counts']) && $_POST['show_registration_counts'] !== '1')) {
+            calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+        }
+        $data['show_registration_counts'] = isset($_POST['show_registration_counts']) ? 1 : 0;
+        $formats[] = '%d';
+    } elseif (!$event_id) {
+        $data['show_registration_counts'] = 1;
+        $formats[] = '%d';
+    }
     if ($wpdb->query('START TRANSACTION') === false || !calsys_lock_linked_room_ids('event', $event_id, $room_id)) {
         $wpdb->query('ROLLBACK');
         calsys_action_redirect($frontend, 'calsys-events', 'invalid');
@@ -209,7 +221,8 @@ function calsys_save_event($frontend = false) {
     $skipped = 0;
     if ($event_id) {
         unset($data['recurrence_group']);
-        $updated = $wpdb->update($table, $data, array('id' => $event_id), array('%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%s'), array('%d'));
+        array_splice($formats, 11, 1);
+        $updated = $wpdb->update($table, $data, array('id' => $event_id), $formats, array('%d'));
         if ($updated === false || !$wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE id = %d", $event_id))) {
             $wpdb->query('ROLLBACK');
             calsys_action_redirect($frontend, 'calsys-events', 'invalid');
@@ -230,7 +243,7 @@ function calsys_save_event($frontend = false) {
             $data['starts_at'] = $occurrence[0];
             $data['ends_at'] = $occurrence[1];
             $data['created_at'] = current_time('mysql');
-            if (!$wpdb->insert($table, $data, array('%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%s', '%s', '%s'))) {
+            if (!$wpdb->insert($table, $data, array_merge($formats, array('%s')))) {
                 $wpdb->query('ROLLBACK');
                 calsys_action_redirect($frontend, 'calsys-events', 'invalid');
             }

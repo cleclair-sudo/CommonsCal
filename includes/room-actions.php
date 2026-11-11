@@ -70,6 +70,16 @@ function calsys_save_booking($staff_booking = false, $frontend = false) {
         $staff_booking
     );
     if (!$booking) {
+        $date = $_POST['booking_date'] ?? '';
+        $start = $_POST['starts_at'] ?? '';
+        $end = $_POST['ends_at'] ?? '';
+        if (!$staff_booking && is_string($date) && is_string($start) && is_string($end) &&
+            preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) &&
+            preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $start) &&
+            preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $end) && $start < $end &&
+            !calsys_room_is_within_hours($date, $start, $end)) {
+            calsys_action_redirect($frontend, 'calsys-rooms', 'outside_hours');
+        }
         calsys_action_redirect($frontend, 'calsys-rooms', 'invalid_room_request');
     }
     if ($wpdb->query('START TRANSACTION') === false) {
@@ -184,7 +194,12 @@ function calsys_save_booking($staff_booking = false, $frontend = false) {
             );
         }
     }
-    calsys_action_redirect($frontend, 'calsys-rooms', $frontend ? $notice : ($staff_booking ? 'booking_saved' : 'room_request_sent'));
+    if ($staff_booking && !calsys_room_is_within_hours($booking['date'], substr($booking['start'], 0, 5), substr($booking['end'], 0, 5))) {
+        $notice = 'room_booking_saved_outside_hours';
+    } elseif (!$frontend) {
+        $notice = $staff_booking ? 'booking_saved' : 'room_request_sent';
+    }
+    calsys_action_redirect($frontend, 'calsys-rooms', $notice);
 }
 
 /** Handles room bookings created by staff in the admin management screen. */

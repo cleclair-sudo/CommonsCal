@@ -357,6 +357,7 @@ function calsys_admin_events_page() {
                 <input id="calsys-event-end" name="ends_at" type="datetime-local" required value="<?php echo esc_attr($editing ? str_replace(' ', 'T', substr($editing->ends_at, 0, 16)) : ''); ?>"></p>
             <p><label for="calsys-event-capacity"><?php esc_html_e('Event registration limit (0 uses the global setting)', 'community-calendar-study-rooms'); ?></label><br>
                 <input id="calsys-event-capacity" name="capacity" type="number" min="0" step="1" value="<?php echo esc_attr($editing ? $editing->capacity : 0); ?>"></p>
+            <?php echo calsys_event_count_visibility_field($editing ? !empty($editing->show_registration_counts) : true); ?>
             <p><label for="calsys-event-status"><?php esc_html_e('Visibility', 'community-calendar-study-rooms'); ?></label><br>
                 <select id="calsys-event-status" name="status">
                     <option value="draft" <?php selected($editing ? $editing->status : 'draft', 'draft'); ?>><?php esc_html_e('Draft', 'community-calendar-study-rooms'); ?></option>
@@ -601,7 +602,7 @@ function calsys_admin_rooms_page() {
     $room_calendar_load_failed = $room_calendar_entries === false;
     $room_calendar_events = $wpdb->get_results($wpdb->prepare(
         "SELECT e.id, e.title, e.description, e.image_id, e.starts_at, e.ends_at, e.capacity, e.status, e.category, e.registration_fields,
-        e.registration_enabled, e.registration_recipients,
+        e.registration_enabled, e.registration_recipients, e.show_registration_counts,
         (SELECT b.room_id FROM " . calsys_table('bookings') . " b WHERE b.source_type = 'event' AND b.source_id = e.id ORDER BY b.id ASC LIMIT 1) AS room_id,
         0 AS all_day, 'event' AS calendar_type,
         (SELECT COUNT(*) FROM " . calsys_table('registrations') . " r WHERE r.event_id = e.id) AS registration_count
@@ -616,7 +617,7 @@ function calsys_admin_rooms_page() {
         $categories = calsys_event_categories();
         foreach ($room_calendar_events as $event) {
             $event->category_label = $categories[$event->category] ?? '';
-            $event->calendar_detail = calsys_show_public_registration_counts()
+            $event->calendar_detail = calsys_show_public_registration_counts($event)
                 ? sprintf(
                     _n('%d registered', '%d registered', (int) $event->registration_count, 'community-calendar-study-rooms'),
                     (int) $event->registration_count
@@ -676,7 +677,7 @@ function calsys_admin_rooms_page() {
         <section class="calsys-admin-card calsys-admin-booking-form-card">
         <h2><?php esc_html_e('Create a patron booking', 'community-calendar-study-rooms'); ?></h2>
         <p><?php esc_html_e('Staff bookings are confirmed immediately. Public room requests remain pending until approved.', 'community-calendar-study-rooms'); ?></p>
-        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="calsys-admin-form calsys-admin-booking-form">
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="calsys-admin-form calsys-admin-booking-form"<?php echo calsys_room_availability_attributes(true); ?>>
             <?php wp_nonce_field('calsys_staff_booking'); ?>
             <input type="hidden" name="action" value="calsys_staff_booking">
             <p><label for="calsys-booking-room"><?php esc_html_e('Room', 'community-calendar-study-rooms'); ?></label><br>
@@ -691,6 +692,7 @@ function calsys_admin_rooms_page() {
             <p><label for="calsys-booking-date"><?php esc_html_e('Date', 'community-calendar-study-rooms'); ?></label><br><input id="calsys-booking-date" name="booking_date" type="date" required></p>
             <p><label for="calsys-booking-start"><?php esc_html_e('Start time', 'community-calendar-study-rooms'); ?></label><br><input id="calsys-booking-start" name="starts_at" type="time" required></p>
             <p><label for="calsys-booking-end"><?php esc_html_e('End time', 'community-calendar-study-rooms'); ?></label><br><input id="calsys-booking-end" name="ends_at" type="time" required></p>
+            <?php echo calsys_room_availability_messages(); ?>
             <div class="calsys-form-wide"><?php echo calsys_equipment_fields(); ?></div>
             <?php submit_button(__('Confirm staff booking', 'community-calendar-study-rooms')); ?>
         </form>

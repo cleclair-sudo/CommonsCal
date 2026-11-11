@@ -12,6 +12,14 @@
     margin-block: 1.5rem;
 }
 
+.calsys-room-availability:not(:empty) {
+    background: #fff8e6;
+    border-left: 4px solid #b7791f;
+    color: #49320b;
+    margin: 0.5rem 0;
+    padding: 0.7rem 0.9rem;
+}
+
 .calsys-access-links {
     display: flex;
     align-items: center;

@@ -52,5 +52,19 @@
         $categories.on('click', '.calsys-remove-category', function () {
             $(this).closest('.calsys-category-row').remove();
         });
+
+        var $holidays = $('#calsys-holiday-hours');
+        var nextHolidayIndex = $holidays.find('.calsys-holiday-row').length;
+        $('#calsys-add-holiday').on('click', function () {
+            if ($holidays.find('.calsys-holiday-row').length >= 100) {
+                return;
+            }
+            var template = document.getElementById('calsys-holiday-template');
+            $holidays.append(template.innerHTML.replace(/INDEX/g, String(nextHolidayIndex)));
+            nextHolidayIndex += 1;
+        });
+        $holidays.on('click', '.calsys-remove-holiday', function () {
+            $(this).closest('.calsys-holiday-row').remove();
+        });
     });
 })(jQuery);

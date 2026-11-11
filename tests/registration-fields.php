@@ -15,9 +15,11 @@ function esc_attr($text) { return esc_html($text); }
 function esc_textarea($text) { return esc_html($text); }
 function selected($value, $expected) { if ($value === $expected) { echo 'selected'; } }
 function checked($value) { if ($value) { echo 'checked'; } }
+function current_user_can($capability) { return $GLOBALS['staff']; }
 
 require __DIR__ . '/../includes/core.php';
 require __DIR__ . '/../includes/calendars.php';
+require __DIR__ . '/../includes/frontend-forms.php';
 
 function expect($condition, $message) {
     if (!$condition) {
@@ -45,5 +47,15 @@ foreach (array('text', 'select') as $type) {
     preg_match('/<textarea[^>]*>/', $html, $match);
     expect(isset($match[0]) && (bool) preg_match('/\srequired(?:\s|>)/', $match[0]) === ($type === 'select'), "$type: incorrect dropdown options requirement");
 }
+
+$staff = false;
+$hidden_event = (object) array('show_registration_counts' => 0);
+$visible_event = (object) array('show_registration_counts' => 1);
+expect(!calsys_show_public_registration_counts($hidden_event), 'Hidden event counts must not be public');
+expect(calsys_show_public_registration_counts($visible_event), 'Visible event counts must be public');
+$staff = true;
+expect(calsys_show_public_registration_counts($hidden_event), 'Staff must still see hidden event counts');
+expect(strpos(calsys_event_count_visibility_field(false), 'checked') === false, 'Editing a hidden event must start unchecked');
+expect(strpos(calsys_event_count_visibility_field(true), 'checked') !== false, 'New events must default to showing counts');
 
 echo "Registration field rendering passed.\n";

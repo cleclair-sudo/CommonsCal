@@ -37,6 +37,107 @@
         });
     }
 
+    function filterRoomTimes(form, hours) {
+        if (form.dataset.staffBooking === '1') {
+            return;
+        }
+        form.querySelectorAll('select[data-calsys-room-time]').forEach(function (select) {
+            Array.prototype.forEach.call(select.options, function (option) {
+                if (!option.value) {
+                    return;
+                }
+                var allowed = hours && (hours.mode === 'unrestricted' ||
+                    (hours.mode === 'open' && (select.name === 'starts_at'
+                        ? option.value >= hours.open && option.value < hours.close
+                        : option.value > hours.open && option.value <= hours.close)));
+                option.disabled = !allowed;
+                option.hidden = !allowed;
+            });
+            if (select.selectedOptions.length && select.selectedOptions[0].disabled) {
+                select.value = '';
+            }
+        });
+    }
+
+    // Checks availability without exposing booking details; the server checks again on save.
+    function updateRoomAvailability(form) {
+        var message = form.querySelector('[data-calsys-availability]');
+        var date = form.elements.namedItem('booking_date');
+        var room = form.elements.namedItem('room_id');
+        var start = form.elements.namedItem('starts_at');
+        var end = form.elements.namedItem('ends_at');
+        if (!message || !date || !room || !start || !end) {
+            return;
+        }
+        form._calsysAvailabilityRequest = (form._calsysAvailabilityRequest || 0) + 1;
+        var requestId = form._calsysAvailabilityRequest;
+        message.textContent = '';
+        if (!date.value) {
+            filterRoomTimes(form, null);
+            return;
+        }
+        var params = new URLSearchParams({
+            action: 'calsys_room_availability',
+            nonce: form.dataset.availabilityNonce,
+            date: date.value
+        });
+        if (room.value && start.value && end.value && start.value < end.value) {
+            params.set('room_id', room.value);
+            params.set('start', start.value);
+            params.set('end', end.value);
+            var bookingId = form.elements.namedItem('booking_id');
+            if (bookingId && bookingId.value) {
+                params.set('booking_id', bookingId.value);
+            }
+        }
+        fetch(form.dataset.ajaxUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: params.toString()
+        }).then(function (response) {
+            if (!response.ok) {
+                throw new Error('Room availability request failed.');
+            }
+            return response.json();
+        }).then(function (result) {
+            if (requestId !== form._calsysAvailabilityRequest) {
+                return;
+            }
+            if (!result.success || !result.data || !result.data.hours) {
+                throw new Error('Invalid room availability response.');
+            }
+            var hours = result.data.hours;
+            var previousStart = start.value;
+            var previousEnd = end.value;
+            filterRoomTimes(form, hours);
+            if (start.value !== previousStart || end.value !== previousEnd) {
+                updateRoomAvailability(form);
+                return;
+            }
+            var messages = [];
+            if (hours.mode === 'closed') {
+                messages.push(message.dataset.closed);
+            } else if (hours.mode === 'open') {
+                messages.push(message.dataset.hours.replace('%1$s', hours.open).replace('%2$s', hours.close));
+            }
+            if (form.dataset.staffBooking === '1' && start.value && end.value &&
+                (hours.mode === 'closed' || (hours.mode === 'open' && (start.value < hours.open || end.value > hours.close)))) {
+                messages.push(message.dataset.outside);
+            }
+            if (result.data.conflict) {
+                messages.push(message.dataset.conflict);
+            }
+            message.textContent = messages.join(' ');
+        }).catch(function (error) {
+            if (requestId === form._calsysAvailabilityRequest) {
+                filterRoomTimes(form, { mode: 'unrestricted' });
+                message.textContent = message.dataset.error;
+                console.error('Unable to check room availability.', error);
+            }
+        });
+    }
+
     // Updates an event form's selected image and its visible preview.
     function updateEventImage(form, imageId, imageUrl, imageAlt) {
         var imageField = form.querySelector('[data-calsys-event-image-id]');
@@ -358,6 +459,11 @@
             return null;
         }
         form.reset();
+        form._calsysAvailabilityRequest = (form._calsysAvailabilityRequest || 0) + 1;
+        var availability = form.querySelector('[data-calsys-availability]');
+        if (availability) {
+            availability.textContent = '';
+        }
         form.querySelectorAll('[data-calsys-existing-time]').forEach(function (option) { option.remove(); });
         setValue(form, 'booking_id', '0');
         var deleteForm = widget.querySelector('[data-calsys-delete-room-booking-form]');
@@ -494,7 +600,10 @@
         }
 
         if (button.hasAttribute('data-calsys-open-room')) {
-            resetRoomForm(widget);
+            var openRoomForm = resetRoomForm(widget);
+            if (openRoomForm) {
+                updateRoomAvailability(openRoomForm);
+            }
             openRoomDialog(widget);
         } else if (button.hasAttribute('data-calsys-close-room')) {
             closeDialog(widget.querySelector('.calsys-room-dialog'));
@@ -513,6 +622,7 @@
             var roomForm = resetRoomForm(widget);
             if (roomForm) {
                 setValue(roomForm, 'booking_date', button.dataset.date);
+                updateRoomAvailability(roomForm);
                 openRoomDialog(widget);
             }
         } else if (button.hasAttribute('data-calsys-edit-room')) {
@@ -526,6 +636,7 @@
                 setValue(editRoomForm, 'requester_name', button.dataset.name);
                 setValue(editRoomForm, 'requester_email', button.dataset.email);
                 setEquipment(editRoomForm, button.dataset.equipment);
+                updateRoomAvailability(editRoomForm);
                 var roomHeading = widget.querySelector('.calsys-room-request h2');
                 if (roomHeading) {
                     roomHeading.textContent = labels.editRoomBooking || 'Edit room booking';
@@ -568,6 +679,10 @@
                 setValue(editEventForm, 'starts_at', button.dataset.start);
                 setValue(editEventForm, 'ends_at', button.dataset.end);
                 setValue(editEventForm, 'capacity', button.dataset.capacity);
+                var showRegistrationCounts = editEventForm.querySelector('[name="show_registration_counts"]');
+                if (showRegistrationCounts) {
+                    showRegistrationCounts.checked = button.dataset.showRegistrationCounts === '1';
+                }
                 setValue(editEventForm, 'status', button.dataset.status);
                 setValue(editEventForm, 'category', button.dataset.category);
                 var registrationToggle = editEventForm.querySelector('[data-calsys-toggle-registration]');
@@ -682,6 +797,12 @@
         if (event.target instanceof Element && event.target.closest('.calsys-action-form, .calsys-admin-form')) {
             updateFormControls(event.target.closest('.calsys-action-form, .calsys-admin-form'));
         }
+        if (event.target instanceof Element && event.target.matches('[name="booking_date"], [name="room_id"], [name="starts_at"], [name="ends_at"]')) {
+            var roomForm = event.target.closest('[data-calsys-room-availability]');
+            if (roomForm) {
+                updateRoomAvailability(roomForm);
+            }
+        }
     });
 
     // Confirms destructive calendar actions before allowing their forms to submit.
@@ -708,6 +829,7 @@
     // Initializes forms rendered after the script was loaded.
     document.addEventListener('DOMContentLoaded', function () {
         initializeFormControls(document);
+        document.querySelectorAll('[data-calsys-room-availability]').forEach(updateRoomAvailability);
     });
     initializeFormControls(document);
 })();
