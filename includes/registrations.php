@@ -39,6 +39,9 @@ function calsys_register_event() {
         isset($_POST['reminder_opt_in']) && is_scalar($_POST['reminder_opt_in']) &&
         wp_unslash($_POST['reminder_opt_in']) === '1';
 
+    if (calsys_promote_event_waitlist($event_id) === 'error') {
+        calsys_frontend_redirect('invalid_registration');
+    }
     $registrations_table = calsys_table('registrations');
     if ($wpdb->query('START TRANSACTION') === false) {
         calsys_frontend_redirect('invalid_registration');
@@ -65,18 +68,59 @@ function calsys_register_event() {
         $event_id,
         strtolower($email)
     ));
-    $count = (int) $wpdb->get_var($wpdb->prepare(
+    if ($wpdb->last_error) {
+        error_log('CommonsCal: unable to check event registration: ' . $wpdb->last_error);
+        $wpdb->query('ROLLBACK');
+        calsys_frontend_redirect('invalid_registration');
+    }
+    $waiting = $wpdb->get_var($wpdb->prepare(
+        "SELECT id FROM " . calsys_table('waitlist') . " WHERE event_id = %d AND email = %s",
+        $event_id,
+        strtolower($email)
+    ));
+    if ($wpdb->last_error) {
+        error_log('CommonsCal: unable to check event waitlist: ' . $wpdb->last_error);
+        $wpdb->query('ROLLBACK');
+        calsys_frontend_redirect('invalid_registration');
+    }
+    $count = $wpdb->get_var($wpdb->prepare(
         "SELECT COUNT(*) FROM $registrations_table WHERE event_id = %d",
         $event_id
     ));
-    if ($existing) {
+    if ($count === null || $count === false || $wpdb->last_error) {
+        error_log('CommonsCal: unable to check event waitlist: ' . $wpdb->last_error);
+        $wpdb->query('ROLLBACK');
+        calsys_frontend_redirect('invalid_registration');
+    }
+    if ($existing || $waiting) {
         $wpdb->query('ROLLBACK');
         calsys_frontend_redirect('already_registered');
     }
     $effective_capacity = calsys_event_capacity($locked_event->capacity);
-    if ($effective_capacity > 0 && $count >= $effective_capacity) {
-        $wpdb->query('ROLLBACK');
-        calsys_frontend_redirect('event_full');
+    if ($effective_capacity > 0 && (int) $count >= $effective_capacity) {
+        if (($_POST['join_waitlist'] ?? '') !== '1') {
+            $wpdb->query('ROLLBACK');
+            calsys_frontend_redirect('event_full');
+        }
+        $inserted = $wpdb->insert(calsys_table('waitlist'), array(
+            'event_id' => $event_id,
+            'name' => $name,
+            'email' => strtolower($email),
+            'registration_fields' => wp_json_encode($answers),
+            'reminder_opt_in' => $reminder_opt_in ? 1 : 0,
+            'joined_at' => current_time('mysql'),
+        ));
+        if (!$inserted || $wpdb->query('COMMIT') === false) {
+            error_log('CommonsCal: unable to save event waitlist: ' . $wpdb->last_error);
+            $wpdb->query('ROLLBACK');
+            calsys_frontend_redirect('invalid_registration');
+        }
+        $sent = calsys_send_email(
+            strtolower($email),
+            sprintf(__('Waitlist joined: %s', 'community-calendar-study-rooms'), $event->title),
+            sprintf(__('Hello %1$s, you are on the waitlist for %2$s. We will email you if a place becomes available.', 'community-calendar-study-rooms'), $name, $event->title)
+        );
+        calsys_frontend_redirect($sent ? 'waitlist_joined' : 'waitlist_joined_email_failed');
     }
 
     $inserted = $wpdb->insert($registrations_table, array(

@@ -17,13 +17,22 @@ function calsys_save_room() {
         calsys_admin_redirect('calsys-settings', 'invalid');
     }
     $data = array('name' => $name, 'capacity' => $capacity, 'active' => $active);
+    $formats = array('%s', '%d', '%d');
+    if (isset($_POST['color'])) {
+        $color = wp_unslash($_POST['color']);
+        if (!is_string($color) || ($color !== '' && !sanitize_hex_color($color))) {
+            calsys_admin_redirect('calsys-settings', 'invalid');
+        }
+        $data['color'] = $color === '' ? '' : sanitize_hex_color($color);
+        $formats[] = '%s';
+    }
     if ($room_id) {
-        $updated = $wpdb->update(calsys_table('rooms'), $data, array('id' => $room_id), array('%s', '%d', '%d'), array('%d'));
+        $updated = $wpdb->update(calsys_table('rooms'), $data, array('id' => $room_id), $formats, array('%d'));
         if ($updated === false || !$wpdb->get_var($wpdb->prepare("SELECT id FROM " . calsys_table('rooms') . " WHERE id = %d", $room_id))) {
             calsys_admin_redirect('calsys-settings', 'invalid');
         }
     } else {
-        if (!$wpdb->insert(calsys_table('rooms'), $data, array('%s', '%d', '%d'))) {
+        if (!$wpdb->insert(calsys_table('rooms'), $data, $formats)) {
             calsys_admin_redirect('calsys-settings', 'invalid');
         }
     }
@@ -73,6 +82,9 @@ function calsys_save_booking($staff_booking = false, $frontend = false) {
         $date = $_POST['booking_date'] ?? '';
         $start = $_POST['starts_at'] ?? '';
         $end = $_POST['ends_at'] ?? '';
+        if (!$staff_booking && calsys_room_duration_exceeds_limit($start, $end, calsys_get_settings()['booking_rules']['max_duration_minutes'])) {
+            calsys_action_redirect($frontend, 'calsys-rooms', 'duration_limit');
+        }
         if (!$staff_booking && is_string($date) && is_string($start) && is_string($end) &&
             preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) &&
             preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $start) &&
@@ -98,7 +110,7 @@ function calsys_save_booking($staff_booking = false, $frontend = false) {
         $wpdb->query('ROLLBACK');
         calsys_action_redirect($frontend, 'calsys-rooms', 'invalid_room_request');
     }
-    if ($has_conflict) {
+    if ($has_conflict && (!$staff_booking || ($_POST['confirm_room_conflict'] ?? '') !== '1')) {
         $wpdb->query('ROLLBACK');
         calsys_action_redirect($frontend, 'calsys-rooms', 'room_conflict');
     }
@@ -244,6 +256,40 @@ function calsys_public_room_booking() {
 add_action('admin_post_calsys_request_room', 'calsys_public_room_booking');
 add_action('admin_post_nopriv_calsys_request_room', 'calsys_public_room_booking');
 
+/** Emails a public room requester about a staff decision or cancellation. */
+function calsys_notify_room_status($booking, $status) {
+    if (($booking->source_type ?? '') !== '' || !is_email($booking->requester_email ?? '')) {
+        return true;
+    }
+    $subjects = array(
+        'approved' => __('Your room request was approved', 'community-calendar-study-rooms'),
+        'denied' => __('Your room request was declined', 'community-calendar-study-rooms'),
+        'cancelled' => __('Your room booking was cancelled', 'community-calendar-study-rooms'),
+    );
+    if (!isset($subjects[$status])) {
+        return false;
+    }
+    global $wpdb;
+    $room_name = $wpdb->get_var($wpdb->prepare("SELECT name FROM " . calsys_table('rooms') . " WHERE id = %d", $booking->room_id));
+    if ($room_name === null || $room_name === false) {
+        error_log('CommonsCal: unable to load room name for status email: ' . $wpdb->last_error);
+        return false;
+    }
+    return calsys_send_email(
+        $booking->requester_email,
+        $subjects[$status],
+        sprintf(
+            __("Hello %1\$s,\n\n%2\$s.\nRoom: %3\$s\nDate: %4\$s\nTime: %5\$s to %6\$s", 'community-calendar-study-rooms'),
+            $booking->requester_name,
+            $subjects[$status],
+            $room_name,
+            $booking->booking_date,
+            $booking->starts_at,
+            $booking->ends_at
+        )
+    );
+}
+
 /** Approves or denies a pending room request after permission and conflict checks. */
 function calsys_booking_decision() {
     $frontend = !empty($_POST['calsys_frontend']);
@@ -286,7 +332,8 @@ function calsys_booking_decision() {
         $wpdb->query('ROLLBACK');
         calsys_action_redirect($frontend, $admin_page, 'invalid');
     }
-    calsys_action_redirect($frontend, $admin_page, $decision === 'approve' ? 'approved' : 'denied');
+    $sent = calsys_notify_room_status($booking, $status);
+    calsys_action_redirect($frontend, $admin_page, $sent ? ($decision === 'approve' ? 'approved' : 'denied') : 'room_status_email_failed');
 }
 add_action('admin_post_calsys_booking_decision', 'calsys_booking_decision');
 
@@ -305,7 +352,7 @@ function calsys_front_delete_room_booking() {
         calsys_frontend_redirect('invalid_room_request');
     }
     $booking = $wpdb->get_row($wpdb->prepare(
-        "SELECT id, room_id, source_type, source_id FROM $bookings_table WHERE id = %d FOR UPDATE",
+        "SELECT * FROM $bookings_table WHERE id = %d FOR UPDATE",
         $booking_id
     ));
     if (!$booking) {
@@ -339,6 +386,6 @@ function calsys_front_delete_room_booking() {
         $wpdb->query('ROLLBACK');
         calsys_frontend_redirect('invalid_room_request');
     }
-    calsys_frontend_redirect('room_booking_deleted');
+    calsys_frontend_redirect(calsys_notify_room_status($booking, 'cancelled') ? 'room_booking_deleted' : 'room_cancel_email_failed');
 }
 add_action('admin_post_calsys_front_delete_room_booking', 'calsys_front_delete_room_booking');

@@ -299,6 +299,8 @@ function calsys_admin_settings_page() {
                     <td><input id="calsys-max-advance" name="booking_rules[max_advance_days]" type="number" min="0" max="730" value="<?php echo esc_attr($settings['booking_rules']['max_advance_days']); ?>"> <?php esc_html_e('days ahead (0 = no limit)', 'community-calendar-study-rooms'); ?></td></tr>
                 <tr><th scope="row"><label for="calsys-min-notice"><?php esc_html_e('Minimum notice', 'community-calendar-study-rooms'); ?></label></th>
                     <td><input id="calsys-min-notice" name="booking_rules[min_notice_hours]" type="number" min="0" max="8760" value="<?php echo esc_attr($settings['booking_rules']['min_notice_hours']); ?>"> <?php esc_html_e('hours before a booking (0 = no limit)', 'community-calendar-study-rooms'); ?></td></tr>
+                <tr><th scope="row"><label for="calsys-max-duration"><?php esc_html_e('Maximum booking duration', 'community-calendar-study-rooms'); ?></label></th>
+                    <td><input id="calsys-max-duration" name="booking_rules[max_duration_minutes]" type="number" min="0" max="1440" step="1" value="<?php echo esc_attr($settings['booking_rules']['max_duration_minutes']); ?>"> <?php esc_html_e('minutes per public booking (0 = no limit)', 'community-calendar-study-rooms'); ?></td></tr>
                 <tr><th scope="row"><label for="calsys-time-increment"><?php esc_html_e('Time increments', 'community-calendar-study-rooms'); ?></label></th>
                     <td><select id="calsys-time-increment" name="booking_rules[time_increment]">
                         <?php foreach (array(0 => __('Any time', 'community-calendar-study-rooms'), 5 => __('5 minutes', 'community-calendar-study-rooms'), 10 => __('10 minutes', 'community-calendar-study-rooms'), 15 => __('15 minutes', 'community-calendar-study-rooms'), 20 => __('20 minutes', 'community-calendar-study-rooms'), 30 => __('30 minutes', 'community-calendar-study-rooms'), 60 => __('1 hour', 'community-calendar-study-rooms')) as $value => $label) : ?>
@@ -411,11 +413,16 @@ function calsys_admin_settings_page() {
                     <td><label><input name="privacy[show_room_names]" type="checkbox" value="1" <?php checked($settings['privacy']['show_room_names']); ?>> <?php esc_html_e('Show room names to visitors', 'community-calendar-study-rooms'); ?></label><br>
                         <label><input name="privacy[show_room_status]" type="checkbox" value="1" <?php checked($settings['privacy']['show_room_status']); ?>> <?php esc_html_e('Show pending/approved status to visitors', 'community-calendar-study-rooms'); ?></label>
                         <p class="description"><?php esc_html_e('Requester names, emails, and event registrant contact details remain private to staff.', 'community-calendar-study-rooms'); ?></p></td></tr>
+                <tr><th scope="row"><label for="calsys-retention-days"><?php esc_html_e('Personal data retention', 'community-calendar-study-rooms'); ?></label></th>
+                    <td><input id="calsys-retention-days" name="privacy[retention_days]" type="number" min="0" max="3650" step="1" value="<?php echo esc_attr($settings['privacy']['retention_days']); ?>"> <?php esc_html_e('days after a booking or event ends (0 = disabled)', 'community-calendar-study-rooms'); ?>
+                    <p class="description"><?php esc_html_e('When enabled, past booking and registration contact details and answers are permanently anonymized; past waitlist entries are removed. Totals and room usage are retained. Cleanup runs through WordPress scheduled tasks.', 'community-calendar-study-rooms'); ?></p></td></tr>
             </tbody></table>
             </section>
 
             <section class="calsys-settings-card" id="calsys-settings-shortcodes">
             <h2><?php esc_html_e('Calendar shortcodes', 'community-calendar-study-rooms'); ?></h2>
+            <p><?php esc_html_e('Public event calendar subscription URL:', 'community-calendar-study-rooms'); ?> <a href="<?php echo esc_url(add_query_arg('calsys_ical', 'events', home_url('/'))); ?>"><?php echo esc_html(add_query_arg('calsys_ical', 'events', home_url('/'))); ?></a></p>
+            <p class="description"><?php esc_html_e('Subscribe in a calendar app to receive published events. Room bookings, registrations, and staff entries are not included.', 'community-calendar-study-rooms'); ?></p>
             <p><?php esc_html_e('Copy the shortcode for the calendar or event cards you want to place on a page. The room bookings calendar also includes upcoming published events. Visitors see public entries only; private staff bookings remain private.', 'community-calendar-study-rooms'); ?></p>
             <div class="calsys-shortcode-options">
                 <div><strong><?php esc_html_e('Events only', 'community-calendar-study-rooms'); ?></strong><code>[calendar_events]</code></div>
@@ -552,7 +559,7 @@ function calsys_save_settings() {
     $posted_rules = isset($_POST['booking_rules']) && is_array($_POST['booking_rules'])
         ? wp_unslash($_POST['booking_rules'])
         : array();
-    foreach (array('max_advance_days', 'min_notice_hours', 'time_increment', 'opening_time', 'closing_time') as $rule_key) {
+    foreach (array('max_advance_days', 'min_notice_hours', 'max_duration_minutes', 'time_increment', 'opening_time', 'closing_time') as $rule_key) {
         if (isset($posted_rules[$rule_key]) && !is_scalar($posted_rules[$rule_key])) {
             calsys_admin_redirect('calsys-settings', 'settings_invalid');
         }
@@ -561,6 +568,11 @@ function calsys_save_settings() {
     $min_notice_hours = absint($posted_rules['min_notice_hours'] ?? 0);
     $time_increment = absint($posted_rules['time_increment'] ?? 0);
     $old_settings = calsys_get_settings();
+    $raw_max_duration = $posted_rules['max_duration_minutes'] ?? $old_settings['booking_rules']['max_duration_minutes'];
+    if (!is_scalar($raw_max_duration) || !preg_match('/^\d+$/', (string) $raw_max_duration) || (int) $raw_max_duration > 1440) {
+        calsys_admin_redirect('calsys-settings', 'settings_invalid');
+    }
+    $max_duration_minutes = (int) $raw_max_duration;
     $opening_time = sanitize_text_field($posted_rules['opening_time'] ?? $old_settings['booking_rules']['opening_time']);
     $closing_time = sanitize_text_field($posted_rules['closing_time'] ?? $old_settings['booking_rules']['closing_time']);
     $valid_increments = array(0, 5, 10, 15, 20, 30, 60);
@@ -672,8 +684,12 @@ function calsys_save_settings() {
     $posted_privacy = isset($_POST['privacy']) && is_array($_POST['privacy'])
         ? wp_unslash($_POST['privacy'])
         : array();
-    foreach (array('show_room_names', 'show_room_status') as $privacy_key) {
+    foreach (array('show_room_names', 'show_room_status', 'retention_days') as $privacy_key) {
         if (isset($posted_privacy[$privacy_key]) && !is_scalar($posted_privacy[$privacy_key])) {
+            calsys_admin_redirect('calsys-settings', 'settings_invalid');
+        }
+        $raw_retention_days = $posted_privacy['retention_days'] ?? $old_settings['privacy']['retention_days'];
+        if (!is_scalar($raw_retention_days) || !preg_match('/^\d+$/', (string) $raw_retention_days) || (int) $raw_retention_days > 3650) {
             calsys_admin_redirect('calsys-settings', 'settings_invalid');
         }
     }
@@ -685,6 +701,7 @@ function calsys_save_settings() {
         'booking_rules' => array(
             'max_advance_days' => $max_advance_days,
             'min_notice_hours' => $min_notice_hours,
+            'max_duration_minutes' => $max_duration_minutes,
             'time_increment' => $time_increment,
             'opening_time' => $opening_time,
             'closing_time' => $closing_time,
@@ -727,6 +744,7 @@ function calsys_save_settings() {
         'privacy' => array(
             'show_room_names' => isset($posted_privacy['show_room_names']) ? 1 : 0,
             'show_room_status' => isset($posted_privacy['show_room_status']) ? 1 : 0,
+            'retention_days' => (int) $raw_retention_days,
         ),
     );
     global $wpdb;
@@ -782,10 +800,16 @@ function calsys_admin_notice() {
         'saved' => __('Changes saved.', 'community-calendar-study-rooms'),
         'approved' => __('Room request approved.', 'community-calendar-study-rooms'),
         'denied' => __('Room request denied.', 'community-calendar-study-rooms'),
+        'room_status_email_failed' => __('The room request was updated, but the requester email failed. Check the site error log.', 'community-calendar-study-rooms'),
         'booking_saved' => __('Staff booking confirmed.', 'community-calendar-study-rooms'),
         'conflict' => __('That room and time conflict with another pending or approved booking.', 'community-calendar-study-rooms'),
         'room_conflict' => __('That room and time are already requested or booked. Please choose another time.', 'community-calendar-study-rooms'),
         'outside_hours' => __('The requested time is outside opening hours or on a closed day.', 'community-calendar-study-rooms'),
+        'duration_limit' => __('That request exceeds the maximum room booking duration. Please choose a shorter time.', 'community-calendar-study-rooms'),
+        'attendee_cancelled' => __('The attendee was cancelled. Any available places were filled from the waitlist.', 'community-calendar-study-rooms'),
+        'attendee_cancelled_email_failed' => __('The attendee was cancelled, but one or more cancellation or waitlist emails failed. Check the site error log.', 'community-calendar-study-rooms'),
+        'saved_waitlist_error' => __('The event was saved, but its waitlist could not be updated. Check the site error log.', 'community-calendar-study-rooms'),
+        'saved_waitlist_email_failed' => __('The event was saved and waitlist places were assigned, but one or more notification emails failed. Check the site error log.', 'community-calendar-study-rooms'),
         'room_booking_saved_outside_hours' => __('Staff booking confirmed, but it is outside opening hours.', 'community-calendar-study-rooms'),
         'invalid' => __('Please check the submitted information and try again.', 'community-calendar-study-rooms'),
         'invalid_room_request' => __('Please check the room request details and try again.', 'community-calendar-study-rooms'),
@@ -794,6 +818,7 @@ function calsys_admin_notice() {
         'saved_room_conflicts' => '',
         'staff_event_deleted' => __('Staff calendar entry deleted.', 'community-calendar-study-rooms'),
         'event_deleted' => __('Event deleted.', 'community-calendar-study-rooms'),
+        'event_deleted_email_failed' => __('The event was deleted, but one or more cancellation emails failed. Check the site error log.', 'community-calendar-study-rooms'),
         'room_deleted' => __('Room deleted.', 'community-calendar-study-rooms'),
         'room_in_use' => __('This room cannot be deleted because it is used by existing bookings or staff calendar entries. Mark it unavailable instead.', 'community-calendar-study-rooms'),
         'equipment_in_use' => __('The quantity cannot be lower than the amount already reserved at the same time.', 'community-calendar-study-rooms'),

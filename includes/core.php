@@ -66,8 +66,21 @@ function calsys_activate() {
         name varchar(200) NOT NULL,
         capacity int(10) unsigned NOT NULL DEFAULT 1,
         active tinyint(1) NOT NULL DEFAULT 1,
+        color varchar(7) NOT NULL DEFAULT '',
         PRIMARY KEY  (id),
         KEY active (active)
+    ) $collate;");
+
+    dbDelta("CREATE TABLE " . calsys_table('waitlist') . " (
+        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+        event_id bigint(20) unsigned NOT NULL,
+        name varchar(200) NOT NULL,
+        email varchar(200) NOT NULL,
+        registration_fields longtext NOT NULL,
+        reminder_opt_in tinyint(1) NOT NULL DEFAULT 0,
+        joined_at datetime NOT NULL,
+        PRIMARY KEY  (id),
+        KEY event_id (event_id)
     ) $collate;");
 
     dbDelta("CREATE TABLE " . calsys_table('bookings') . " (
@@ -123,11 +136,11 @@ function calsys_activate() {
         KEY availability (equipment_id, status, starts_at, ends_at)
     ) $collate;");
 
-    foreach (array('equipment', 'equipment_reservations') as $table_name) {
+    foreach (array('equipment', 'equipment_reservations', 'waitlist') as $table_name) {
         $table = calsys_table($table_name);
         $found = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table)));
         if ($found !== $table || $wpdb->last_error) {
-            error_log('CommonsCal: unable to create equipment tables: ' . $wpdb->last_error);
+            error_log('CommonsCal: unable to create plugin tables: ' . $wpdb->last_error);
             return;
         }
     }
@@ -152,6 +165,11 @@ function calsys_activate() {
         }
     }
 
+    if ($previous_db_version < 10 && !$wpdb->get_var("SHOW COLUMNS FROM " . calsys_table('rooms') . " LIKE 'color'")) {
+        error_log('CommonsCal: unable to add room colors: ' . $wpdb->last_error);
+        return;
+    }
+
     calsys_grant_role_capabilities();
     calsys_schedule_reminder_cron();
 
@@ -171,6 +189,7 @@ add_action('plugins_loaded', 'calsys_maybe_upgrade');
 /** Clears scheduled reminders and removes plugin capabilities on deactivation. */
 function calsys_deactivate() {
     wp_clear_scheduled_hook('calsys_send_due_event_reminders');
+    wp_clear_scheduled_hook('calsys_privacy_cleanup');
     foreach (array('administrator', 'editor') as $role_name) {
         $role = get_role($role_name);
         if ($role) {
@@ -476,6 +495,7 @@ function calsys_default_settings() {
         'booking_rules' => array(
             'max_advance_days' => 0,
             'min_notice_hours' => 0,
+            'max_duration_minutes' => 0,
             'time_increment' => 0,
             'opening_time' => '',
             'closing_time' => '',
@@ -516,6 +536,7 @@ function calsys_default_settings() {
         'privacy' => array(
             'show_room_names' => 1,
             'show_room_status' => 1,
+            'retention_days' => 0,
         ),
     );
 }
@@ -626,6 +647,7 @@ function calsys_get_settings() {
     $settings['booking_rules'] = array(
         'max_advance_days' => min(730, max(0, absint($rules['max_advance_days'] ?? $defaults['booking_rules']['max_advance_days']))),
         'min_notice_hours' => min(8760, max(0, absint($rules['min_notice_hours'] ?? $defaults['booking_rules']['min_notice_hours']))),
+        'max_duration_minutes' => min(1440, max(0, absint($rules['max_duration_minutes'] ?? $defaults['booking_rules']['max_duration_minutes']))),
         'time_increment' => in_array(absint($rules['time_increment'] ?? 0), array(0, 5, 10, 15, 20, 30, 60), true)
             ? absint($rules['time_increment'] ?? 0) : 0,
         'opening_time' => $opening_time,
@@ -688,6 +710,7 @@ function calsys_get_settings() {
     $settings['privacy'] = array(
         'show_room_names' => isset($privacy['show_room_names']) ? (int) (bool) $privacy['show_room_names'] : $defaults['privacy']['show_room_names'],
         'show_room_status' => isset($privacy['show_room_status']) ? (int) (bool) $privacy['show_room_status'] : $defaults['privacy']['show_room_status'],
+        'retention_days' => min(3650, absint($privacy['retention_days'] ?? $defaults['privacy']['retention_days'])),
     );
     $settings_cache = $settings;
     return $settings_cache;
@@ -783,7 +806,7 @@ function calsys_send_email($recipient, $subject, $message) {
 }
 
 /** Returns the configured display color for an event, room, or staff entry. */
-function calsys_calendar_entry_color($calendar_type, $entry_type = '') {
+function calsys_calendar_entry_color($calendar_type, $entry_type = '', $room_color = '') {
     $settings = calsys_get_settings();
     if ($calendar_type === 'staff') {
         if (isset($settings['staff_types'][$entry_type]['color'])) {
@@ -792,7 +815,8 @@ function calsys_calendar_entry_color($calendar_type, $entry_type = '') {
         return $settings['calendar_colors']['staff'];
     }
     if ($calendar_type === 'room') {
-        return $settings['calendar_colors']['rooms'];
+        return is_string($room_color) && sanitize_hex_color($room_color)
+            ? sanitize_hex_color($room_color) : $settings['calendar_colors']['rooms'];
     }
     return $settings['calendar_colors']['events'];
 }

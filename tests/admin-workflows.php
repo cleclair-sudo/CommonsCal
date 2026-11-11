@@ -9,12 +9,14 @@ class TestDatabase {
     public $result = array();
     public $row = null;
     public $updated = null;
+    public $inserted = null;
     public function prepare($sql, ...$args) { $this->queries[] = array($sql, $args); return $sql; }
     public function get_results($sql) { $this->queries[] = $sql; return $this->result; }
     public function get_row($sql) { $this->queries[] = $sql; return $this->row; }
     public function get_var($sql) { return 1; }
     public function query($sql) { return 1; }
     public function update($table, $data, $where, $formats = null, $where_formats = null) { $this->updated = $data; return 1; }
+    public function insert($table, $data, $formats = null) { $this->inserted = $data; return 1; }
 }
 class TestRedirect extends Exception {
     public $page;
@@ -36,6 +38,8 @@ function esc_html($text) { return htmlspecialchars((string) $text, ENT_QUOTES, '
 function esc_html__($text) { return esc_html($text); }
 function esc_html_e($text) { echo esc_html($text); }
 function esc_attr($text) { return esc_html($text); }
+function esc_js($text) { return esc_html($text); }
+function esc_attr_e($text) { echo esc_attr($text); }
 function esc_url($text) { return esc_html($text); }
 function admin_url($path) { return '/wp-admin/' . $path; }
 function add_query_arg($key, $value, $url) { return $url . '&' . $key . '=' . $value; }
@@ -44,12 +48,19 @@ function check_admin_referer($action) { $GLOBALS['nonce_action'] = $action; }
 function calsys_table($name) { return 'wp_calsys_' . $name; }
 function calsys_event_capacity($capacity) { return (int) $capacity; }
 function number_format_i18n($number) { return (string) $number; }
-function current_time($format) { return '2026-11-11 12:00:00'; }
+function current_time($format) { return $format === 'Y-m-d' ? '2026-11-11' : '2026-11-11 12:00:00'; }
+function wp_timezone() { return new DateTimeZone('America/New_York'); }
+function calsys_staff_types() { return array('other' => 'Other'); }
 function get_option($name) { return $name === 'date_format' ? 'Y-m-d' : 'H:i'; }
 function mysql2date($format, $date) { return date($format, strtotime($date)); }
 function absint($value) { return abs((int) $value); }
 function sanitize_key($value) { return $value; }
 function wp_unslash($value) { return $value; }
+function sanitize_text_field($value) { return trim($value); }
+function sanitize_hex_color($value) { return preg_match('/^#(?:[a-f0-9]{3}|[a-f0-9]{6})$/i', $value) ? $value : null; }
+function is_email($value) { return filter_var($value, FILTER_VALIDATE_EMAIL); }
+function calsys_send_email($recipient, $subject, $message) { $GLOBALS['sent_emails'][] = array($recipient, $subject, $message); return $GLOBALS['email_succeeds']; }
+function calsys_admin_redirect($page, $notice) { throw new TestRedirect($page, $notice); }
 function calsys_booking_conflict() { return $GLOBALS['conflict']; }
 function calsys_equipment_description() { return 'Projector (1)'; }
 function calsys_action_redirect($frontend, $page, $notice) { throw new TestRedirect($page, $notice); }
@@ -98,7 +109,7 @@ expect(strpos($wpdb->queries[0][0], 'e.starts_at >= %s') !== false && $wpdb->que
 
 $_GET = array('event_id' => 4);
 $wpdb->row = (object) array('id' => 4, 'title' => 'Story time', 'starts_at' => '2026-12-01 10:00:00');
-$wpdb->result = array((object) array('name' => 'Alex', 'email' => 'alex@example.org', 'registered_at' => '2026-11-11 12:00:00', 'registration_fields' => '[{"label":"Question","value":"<Answer>"}]', 'reminder_opt_in' => 0, 'reminder_sent_at' => null));
+$wpdb->result = array((object) array('id' => 1, 'event_id' => 4, 'name' => 'Alex', 'email' => 'alex@example.org', 'registered_at' => '2026-11-11 12:00:00', 'registration_fields' => '[{"label":"Question","value":"<Answer>"}]', 'reminder_opt_in' => 0, 'reminder_sent_at' => null));
 $html = render('calsys_admin_event_registrations_page');
 expect(strpos($html, 'alex@example.org') !== false && strpos($html, 'Question') !== false && strpos($html, '&lt;Answer&gt;') !== false, 'Registration responses are missing or unescaped');
 expect(strpos($wpdb->queries[count($wpdb->queries) - 2][0], 'WHERE event_id = %d') !== false && $wpdb->queries[count($wpdb->queries) - 2][1][0] === 4, 'Registrations must be limited to the selected event');
@@ -115,7 +126,22 @@ try { render('calsys_admin_room_approvals_page'); expect(false, 'Unauthorized ap
 try { render('calsys_admin_event_registrations_page'); expect(false, 'Unauthorized registrations access'); } catch (RuntimeException $error) { ob_end_clean(); }
 $allowed = true;
 
-$wpdb->row = (object) array('room_id' => 2, 'booking_date' => '2026-12-01', 'starts_at' => '10:00:00', 'ends_at' => '11:00:00');
+$_GET = array();
+$wpdb->queries = array();
+$wpdb->result = array();
+$home = render('calsys_admin_home_page');
+expect(strpos($home, '<h2>Upcoming</h2>') !== false && strpos($home, 'no remaining calendar items today') !== false, 'Dashboard upcoming empty state is missing');
+$prepared = array_values(array_filter($wpdb->queries, 'is_array'));
+$event_queries = array_values(array_filter($prepared, function ($query) { return strpos($query[0], 'SELECT title, starts_at FROM wp_calsys_events') !== false; }));
+$room_queries = array_values(array_filter($prepared, function ($query) { return strpos($query[0], 'SELECT b.room_id, b.booking_date') !== false; }));
+$staff_queries = array_values(array_filter($prepared, function ($query) { return strpos($query[0], 'SELECT title, entry_type') !== false; }));
+expect(count($event_queries) === 1 && $event_queries[0][1] === array('published', '2026-11-12 00:00:00', '2026-11-11 12:00:00'), 'Upcoming events must include only items remaining today');
+expect(count($room_queries) === 1 && $room_queries[0][1] === array('pending', 'approved', '2026-11-11', '12:00:00'), 'Upcoming room bookings must be limited to today and not ended');
+expect(count($staff_queries) === 1 && $staff_queries[0][1] === array('2026-11-12 00:00:00', '2026-11-11 12:00:00'), 'Upcoming staff time must include only items remaining today');
+
+$wpdb->row = (object) array('room_id' => 2, 'booking_date' => '2026-12-01', 'starts_at' => '10:00:00', 'ends_at' => '11:00:00', 'requester_name' => 'Test', 'requester_email' => 'test@example.org', 'source_type' => '');
+$sent_emails = array();
+$email_succeeds = true;
 foreach (array('approve' => 'approved', 'deny' => 'denied') as $decision => $status) {
     $_POST = array('booking_id' => '17', 'decision' => $decision, 'calsys_return_page' => 'calsys-room-approvals');
     try { calsys_booking_decision(); expect(false, 'Expected redirect'); } catch (TestRedirect $redirect) {
@@ -123,6 +149,13 @@ foreach (array('approve' => 'approved', 'deny' => 'denied') as $decision => $sta
         expect($nonce_action === 'calsys_booking_decision_17', 'Wrong decision nonce');
     }
 }
+expect(count($sent_emails) === 2 && strpos($sent_emails[0][1], 'approved') !== false && strpos($sent_emails[1][1], 'declined') !== false, 'Decisions must notify the requester');
+$email_succeeds = false;
+$_POST = array('booking_id' => '17', 'decision' => 'approve', 'calsys_return_page' => 'calsys-room-approvals');
+try { calsys_booking_decision(); expect(false, 'Expected redirect'); } catch (TestRedirect $redirect) {
+    expect($redirect->notice === 'room_status_email_failed', 'Email failures must be reported after the decision is saved');
+}
+$email_succeeds = true;
 $conflict = true;
 $_POST = array('booking_id' => '17', 'decision' => 'approve', 'calsys_return_page' => 'calsys-room-approvals');
 try { calsys_booking_decision(); expect(false, 'Expected conflict'); } catch (TestRedirect $redirect) {
@@ -132,5 +165,22 @@ $_POST['calsys_return_page'] = 'another-page';
 try { calsys_booking_decision(); expect(false, 'Expected conflict'); } catch (TestRedirect $redirect) {
     expect($redirect->page === 'calsys-rooms', 'Unexpected redirect page');
 }
+
+$_POST = array('name' => 'Room A', 'capacity' => '5', 'active' => '1', 'color' => '#a1b2c3');
+try { calsys_save_room(); } catch (TestRedirect $redirect) { expect($redirect->notice === 'saved', 'Valid room color must save'); }
+expect($wpdb->inserted['color'] === '#a1b2c3', 'Room creation must persist the chosen color');
+$_POST['room_id'] = '1';
+$_POST['color'] = '';
+try { calsys_save_room(); } catch (TestRedirect $redirect) { expect($redirect->notice === 'saved', 'Clearing a room color must save'); }
+expect($wpdb->updated['color'] === '', 'Clearing a room color must restore the default');
+unset($_POST['color']);
+try { calsys_save_room(); } catch (TestRedirect $redirect) { expect($redirect->notice === 'saved', 'Older room forms must still save'); }
+expect(!array_key_exists('color', $wpdb->updated), 'Older forms must preserve existing room colors');
+$_POST['color'] = 'not-a-color';
+$wpdb->updated = null;
+try { calsys_save_room(); } catch (TestRedirect $redirect) { expect($redirect->notice === 'invalid', 'Invalid room colors must be rejected'); }
+expect($wpdb->updated === null, 'Invalid room colors must not be saved');
+$_POST['color'] = array('#123456');
+try { calsys_save_room(); } catch (TestRedirect $redirect) { expect($redirect->notice === 'invalid', 'Non-string room colors must be rejected'); }
 
 echo "Admin workflows passed.\n";

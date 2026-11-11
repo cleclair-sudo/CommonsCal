@@ -183,6 +183,47 @@
     text-underline-offset: 0.15em;
 }
 
+.calsys-view-switcher {
+    align-items: center;
+    border-top: 1px solid var(--calsys-border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+}
+
+.calsys-view-switcher > span {
+    font-weight: 700;
+}
+
+.calsys-view-options {
+    background: #e8edf2;
+    border-radius: 0.55rem;
+    display: inline-flex;
+    gap: 0.2rem;
+    padding: 0.2rem;
+}
+
+.calsys-view-options a {
+    border-radius: 0.4rem;
+    color: var(--calsys-ink);
+    font-weight: 600;
+    padding: 0.45rem 0.85rem;
+    text-decoration: none;
+}
+
+.calsys-view-options a[aria-current="page"] {
+    background: #fff;
+    box-shadow: 0 1px 3px #0002;
+    color: var(--calsys-accent);
+}
+
+.calsys-view-options a:focus-visible {
+    outline: 3px solid #f0ad4e;
+    outline-offset: 2px;
+}
+
 .calsys-calendar-entry-category,
 .calsys-event-category {
     color: var(--calsys-muted, #596675);
@@ -235,6 +276,18 @@
     display: inline-block;
     font-weight: 700;
     margin-bottom: 0.3rem;
+}
+
+.calsys-date-mobile {
+    display: none;
+}
+
+.calsys-view-day .calsys-calendar-table {
+    min-width: 0;
+}
+
+.calsys-view-day .calsys-calendar-day {
+    width: 100%;
 }
 
 .calsys-day-action,
@@ -844,6 +897,65 @@
 }
 
 @media (max-width: 34rem) {
+    .calsys-public-calendar .calsys-calendar-heading {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.6rem;
+    }
+
+    .calsys-public-calendar .calsys-calendar-navigation {
+        gap: 0.35rem;
+        justify-content: space-between;
+        min-width: 0;
+    }
+
+    .calsys-public-calendar .calsys-calendar-heading h2 {
+        min-width: 0;
+    }
+
+    .calsys-public-calendar .calsys-calendar-navigation span {
+        min-width: 0;
+        text-align: center;
+    }
+
+    .calsys-public-calendar .calsys-calendar-table,
+    .calsys-public-calendar .calsys-calendar-table tbody,
+    .calsys-public-calendar .calsys-calendar-table tr,
+    .calsys-public-calendar .calsys-calendar-day {
+        box-sizing: border-box;
+        display: block;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .calsys-public-calendar .calsys-calendar-table thead {
+        display: none;
+    }
+
+    .calsys-public-calendar .calsys-calendar-day {
+        height: auto;
+        margin-bottom: 0.4rem;
+        padding: 0.7rem;
+    }
+
+    .calsys-public-calendar .calsys-date-compact {
+        display: none;
+    }
+
+    .calsys-public-calendar .calsys-date-mobile {
+        display: inline;
+    }
+
+    .calsys-public-calendar .calsys-day-action,
+    .calsys-public-calendar .calsys-entry-action {
+        padding: 0.5rem 0.65rem;
+    }
+
+    .calsys-public-calendar .calsys-calendar-entry {
+        font-size: 0.9rem;
+        padding: 0.45rem 0.55rem;
+    }
+
     .calsys-upcoming-events-grid {
         grid-template-columns: minmax(0, 1fr);
     }

@@ -14,6 +14,17 @@ function calsys_parse_datetime($value) {
     return $date->format('Y-m-d H:i:s');
 }
 
+/** Checks a same-day time range against a public booking duration limit. */
+function calsys_room_duration_exceeds_limit($start, $end, $limit) {
+    if (!$limit || !is_string($start) || !is_string($end) ||
+        !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $start) ||
+        !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $end) || $start >= $end) {
+        return false;
+    }
+    return ((int) substr($end, 0, 2) * 60 + (int) substr($end, 3, 2)) -
+        ((int) substr($start, 0, 2) * 60 + (int) substr($start, 3, 2)) > $limit;
+}
+
 /** Validates room, patron, date, and time values against booking rules. */
 function calsys_valid_booking_input($room_id, $name, $email, $date, $start, $end, $staff_booking = false) {
     $room = absint($room_id);
@@ -52,6 +63,9 @@ function calsys_valid_booking_input($room_id, $name, $email, $date, $start, $end
     }
     if (!$staff_booking) {
         $rules = calsys_get_settings()['booking_rules'];
+        if (calsys_room_duration_exceeds_limit($start, $end, $rules['max_duration_minutes'])) {
+            return false;
+        }
         if ($rules['max_advance_days'] > 0) {
             $last_bookable_day = DateTimeImmutable::createFromFormat('!Y-m-d', current_time('Y-m-d'), wp_timezone())
                 ->modify('+' . (int) $rules['max_advance_days'] . ' days')
@@ -116,11 +130,12 @@ function calsys_check_room_availability() {
     $room = isset($_POST['room_id']) && is_string($_POST['room_id']) ? wp_unslash($_POST['room_id']) : '';
     $start = isset($_POST['start']) && is_string($_POST['start']) ? wp_unslash($_POST['start']) : '';
     $end = isset($_POST['end']) && is_string($_POST['end']) ? wp_unslash($_POST['end']) : '';
+    $overnight = current_user_can('manage_calendar_system') && ($_POST['overnight'] ?? '') === '1';
     $conflict = null;
     if ($room !== '' && $start !== '' && $end !== '') {
         if (!ctype_digit($room) || (int) $room < 1 ||
             !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $start) ||
-            !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $end) || $start >= $end) {
+            !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $end) || (!$overnight && $start >= $end)) {
             wp_send_json_error(array('message' => __('Choose a valid room and time range.', 'community-calendar-study-rooms')), 400);
         }
         global $wpdb;
@@ -133,10 +148,24 @@ function calsys_check_room_availability() {
             wp_send_json_error(array('message' => __('That room is unavailable. Please choose another.', 'community-calendar-study-rooms')), 400);
         }
         $exclude_id = current_user_can('manage_calendar_system') ? absint($_POST['booking_id'] ?? 0) : 0;
-        $conflict = calsys_booking_conflict((int) $room, $date, $start . ':00', $end . ':00', $exclude_id);
-        if ($conflict === null) {
-            error_log('CommonsCal: unable to check room conflicts: ' . $wpdb->last_error);
-            wp_send_json_error(array('message' => __('Room availability could not be checked. Please try again.', 'community-calendar-study-rooms')), 500);
+        $ends_date = $overnight && $end <= $start
+            ? DateTimeImmutable::createFromFormat('!Y-m-d', $date, wp_timezone())->modify('+1 day')->format('Y-m-d')
+            : $date;
+        $segments = calsys_schedule_segments($date . ' ' . $start . ':00', $ends_date . ' ' . $end . ':00');
+        if ($segments === false) {
+            wp_send_json_error(array('message' => __('Choose a valid room and time range.', 'community-calendar-study-rooms')), 400);
+        }
+        $conflict = false;
+        foreach ($segments as $segment) {
+            $overlap = calsys_booking_conflict((int) $room, $segment['date'], $segment['start'], $segment['end'], $exclude_id);
+            if ($overlap === null) {
+                error_log('CommonsCal: unable to check room conflicts: ' . $wpdb->last_error);
+                wp_send_json_error(array('message' => __('Room availability could not be checked. Please try again.', 'community-calendar-study-rooms')), 500);
+            }
+            if ($overlap) {
+                $conflict = true;
+                break;
+            }
         }
     }
     wp_send_json_success(array(
@@ -211,7 +240,7 @@ function calsys_lock_linked_room_ids($source_type, $source_id, $new_room_id = 0)
 }
 
 /** Reconciles linked room reservations with the current source schedule. */
-function calsys_sync_linked_room_reservations($source_type, $source_id, $room_id, $starts_at, $ends_at) {
+function calsys_sync_linked_room_reservations($source_type, $source_id, $room_id, $starts_at, $ends_at, $allow_conflict = false) {
     global $wpdb;
     $bookings_table = calsys_table('bookings');
     if ($wpdb->delete($bookings_table, array('source_type' => $source_type, 'source_id' => $source_id), array('%s', '%d')) === false) {
@@ -229,7 +258,7 @@ function calsys_sync_linked_room_reservations($source_type, $source_id, $room_id
         if ($conflict === null) {
             return false;
         }
-        if ($conflict) {
+        if ($conflict && !$allow_conflict) {
             return 1;
         }
     }

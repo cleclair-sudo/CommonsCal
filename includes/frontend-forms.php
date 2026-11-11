@@ -15,6 +15,14 @@ function calsys_staff_access_link($action = 'room') {
     if (preg_match('/^\d{4}-\d{2}$/', $month)) {
         $return_url = add_query_arg('calsys_month', $month, $return_url);
     }
+    if (isset($_GET['calsys_view']) || isset($_GET['calsys_date'])) {
+        list($view, $date) = calsys_calendar_view_state(calsys_calendar_month());
+        $return_url = add_query_arg(array('calsys_view' => $view, 'calsys_date' => $date->format('Y-m-d'), 'calsys_month' => $date->format('Y-m')), $return_url);
+    }
+    $categories = calsys_selected_event_categories();
+    if ($categories) {
+        $return_url = add_query_arg('calsys_category', $categories, $return_url);
+    }
 
     if (!is_user_logged_in()) {
         return '<nav class="calsys-access-links" aria-label="' . esc_attr__('Staff access', 'community-calendar-study-rooms') . '">' .
@@ -83,6 +91,9 @@ function calsys_front_event_form() {
                     <div class="calsys-form-wide"><?php echo calsys_event_image_field(); ?></div>
                     <p><label><?php esc_html_e('Starts', 'community-calendar-study-rooms'); ?><input name="starts_at" type="datetime-local" required></label></p>
                     <p><label><?php esc_html_e('Ends', 'community-calendar-study-rooms'); ?><input name="ends_at" type="datetime-local" required></label></p>
+                    <p class="calsys-form-wide" data-calsys-series-scope hidden><label><?php esc_html_e('Apply changes to', 'community-calendar-study-rooms'); ?>
+                        <select name="event_scope"><option value="one"><?php esc_html_e('This event only', 'community-calendar-study-rooms'); ?></option><option value="future"><?php esc_html_e('This and future events', 'community-calendar-study-rooms'); ?></option><option value="all"><?php esc_html_e('All events in this series', 'community-calendar-study-rooms'); ?></option></select></label>
+                        <span class="description"><?php esc_html_e('All shown fields, including room and equipment, replace the values for selected events. Dates shift by the same amount; registrations stay with each event.', 'community-calendar-study-rooms'); ?></span></p>
                     <p><label><?php esc_html_e('Registration limit (0 means unlimited)', 'community-calendar-study-rooms'); ?><input name="capacity" type="number" min="0" step="1" value="0"></label></p>
                     <?php echo calsys_event_count_visibility_field(); ?>
                     <p><label><?php esc_html_e('Visibility', 'community-calendar-study-rooms'); ?><select name="status"><option value="published"><?php esc_html_e('Published', 'community-calendar-study-rooms'); ?></option><option value="draft"><?php esc_html_e('Draft', 'community-calendar-study-rooms'); ?></option></select></label></p>
@@ -201,13 +212,22 @@ function calsys_room_availability_attributes($staff) {
 }
 
 /** Renders the live room-availability and opening-hours messages. */
-function calsys_room_availability_messages() {
-    return '<div class="calsys-room-availability calsys-form-wide" aria-live="polite" data-calsys-availability ' .
+function calsys_room_availability_messages($staff = false) {
+    $html = '<div class="calsys-room-availability calsys-form-wide" aria-live="polite" data-calsys-availability ' .
         'data-closed="' . esc_attr__('The room is closed on this date.', 'community-calendar-study-rooms') . '" ' .
         'data-hours="' . esc_attr__('Open hours: %1$s to %2$s.', 'community-calendar-study-rooms') . '" ' .
         'data-outside="' . esc_attr__('This booking is outside opening hours. Staff can still book it.', 'community-calendar-study-rooms') . '" ' .
-        'data-conflict="' . esc_attr__('This room is already requested or booked for that time. Choose another time or room.', 'community-calendar-study-rooms') . '" ' .
+        'data-conflict="' . esc_attr($staff
+            ? __('This room is already requested or booked for that time. Choose another time or acknowledge the double booking below.', 'community-calendar-study-rooms')
+            : __('This room is already requested or booked for that time. Choose another time or room.', 'community-calendar-study-rooms')) . '" ' .
         'data-error="' . esc_attr__('Room availability could not be checked. Please try again; the final check happens when you save.', 'community-calendar-study-rooms') . '"></div>';
+    if ($staff) {
+        $html .= '<p class="calsys-form-wide" data-calsys-conflict-ack hidden><label class="calsys-checkbox-label">' .
+            '<input type="checkbox" name="confirm_room_conflict" value="1" disabled> ' .
+            esc_html__('I understand this is double booking something already on this calendar.', 'community-calendar-study-rooms') .
+            '</label></p>';
+    }
+    return $html;
 }
 
 /** Renders the room-request form, with staff booking and edit controls when authorized. */
@@ -267,7 +287,7 @@ function calsys_front_room_form() {
                 <p><label><?php esc_html_e('Date', 'community-calendar-study-rooms'); ?><input name="booking_date" type="date" min="<?php echo esc_attr(current_time('Y-m-d')); ?>" <?php if ($latest_booking_date !== '') : ?>max="<?php echo esc_attr($latest_booking_date); ?>"<?php endif; ?> required></label></p>
                 <p><label><?php esc_html_e('Start time', 'community-calendar-study-rooms'); ?><select name="starts_at" data-calsys-room-time required><?php echo $time_options; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></select></label></p>
                 <p><label><?php esc_html_e('End time', 'community-calendar-study-rooms'); ?><select name="ends_at" data-calsys-room-time required><?php echo $time_options; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></select></label></p>
-                <?php echo calsys_room_availability_messages(); ?>
+                <?php echo calsys_room_availability_messages($staff_booking); ?>
                 <?php if ($staff_booking) : ?>
                     <div class="calsys-form-wide" data-calsys-public-event-fields hidden>
                         <div class="calsys-form-grid">
@@ -283,6 +303,7 @@ function calsys_front_room_form() {
                                 calsys_get_settings()['event_registration']['default_fields']
                             ); ?></div>
                             <p class="calsys-form-wide"><label class="calsys-checkbox-label"><input name="recurring" type="checkbox" value="1" data-calsys-toggle-recurrence> <?php esc_html_e('Repeat this event', 'community-calendar-study-rooms'); ?></label></p>
+                            <p class="calsys-form-wide" data-calsys-recurrence-field hidden><?php esc_html_e('A double-booking acknowledgment applies only to the first occurrence. Later conflicting room reservations are skipped.', 'community-calendar-study-rooms'); ?></p>
                             <p data-calsys-recurrence-field hidden><label><?php esc_html_e('Repeat', 'community-calendar-study-rooms'); ?><select name="recurrence_frequency"><option value="daily"><?php esc_html_e('Daily', 'community-calendar-study-rooms'); ?></option><option value="weekly"><?php esc_html_e('Weekly', 'community-calendar-study-rooms'); ?></option><option value="monthly"><?php esc_html_e('Monthly', 'community-calendar-study-rooms'); ?></option></select></label></p>
                             <p data-calsys-recurrence-field hidden><label><?php esc_html_e('Stop repeating by', 'community-calendar-study-rooms'); ?><select name="recurrence_end_type" data-calsys-recurrence-end><option value="count"><?php esc_html_e('Number of occurrences', 'community-calendar-study-rooms'); ?></option><option value="date"><?php esc_html_e('End date', 'community-calendar-study-rooms'); ?></option></select></label></p>
                             <p data-calsys-recurrence-field hidden data-calsys-occurrences><label><?php esc_html_e('Occurrences (maximum 100)', 'community-calendar-study-rooms'); ?><input name="recurrence_count" type="number" min="2" max="100" value="10"></label></p>
@@ -291,7 +312,7 @@ function calsys_front_room_form() {
                     </div>
                 <?php endif; ?>
             </div>
-            <?php if (!$staff_booking && ($booking_rules['min_notice_hours'] > 0 || $booking_rules['time_increment'] > 0)) : ?>
+            <?php if (!$staff_booking && ($booking_rules['min_notice_hours'] > 0 || $booking_rules['time_increment'] > 0 || $booking_rules['max_duration_minutes'] > 0)) : ?>
                 <p class="description">
                     <?php
                     $booking_guidance = array();
@@ -300,6 +321,9 @@ function calsys_front_room_form() {
                     }
                     if ($booking_rules['time_increment'] > 0) {
                         $booking_guidance[] = sprintf(__('Start and end times must use %d-minute increments.', 'community-calendar-study-rooms'), $booking_rules['time_increment']);
+                    }
+                    if ($booking_rules['max_duration_minutes'] > 0) {
+                        $booking_guidance[] = sprintf(__('Bookings may last at most %d minutes.', 'community-calendar-study-rooms'), $booking_rules['max_duration_minutes']);
                     }
                     echo esc_html(implode(' ', $booking_guidance));
                     ?>

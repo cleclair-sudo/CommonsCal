@@ -66,6 +66,14 @@
         var room = form.elements.namedItem('room_id');
         var start = form.elements.namedItem('starts_at');
         var end = form.elements.namedItem('ends_at');
+        var acknowledgement = form.querySelector('[data-calsys-conflict-ack]');
+        var checkbox = acknowledgement && acknowledgement.querySelector('input');
+        if (checkbox) {
+            checkbox.checked = false;
+            checkbox.required = false;
+            checkbox.disabled = true;
+            acknowledgement.hidden = true;
+        }
         if (!message || !date || !room || !start || !end) {
             return;
         }
@@ -81,10 +89,15 @@
             nonce: form.dataset.availabilityNonce,
             date: date.value
         });
-        if (room.value && start.value && end.value && start.value < end.value) {
+        var publicEvent = form.elements.namedItem('public_event');
+        var overnight = form.dataset.staffBooking === '1' && publicEvent && publicEvent.checked;
+        if (room.value && start.value && end.value && (start.value < end.value || overnight)) {
             params.set('room_id', room.value);
             params.set('start', start.value);
             params.set('end', end.value);
+            if (overnight) {
+                params.set('overnight', '1');
+            }
             var bookingId = form.elements.namedItem('booking_id');
             if (bookingId && bookingId.value) {
                 params.set('booking_id', bookingId.value);
@@ -127,6 +140,11 @@
             }
             if (result.data.conflict) {
                 messages.push(message.dataset.conflict);
+                if (checkbox) {
+                    acknowledgement.hidden = false;
+                    checkbox.disabled = false;
+                    checkbox.required = true;
+                }
             }
             message.textContent = messages.join(' ');
         }).catch(function (error) {
@@ -298,6 +316,10 @@
             return null;
         }
         form.reset();
+        var seriesScope = form.querySelector('[data-calsys-series-scope]');
+        if (seriesScope) {
+            seriesScope.hidden = true;
+        }
         updateEventImage(form, 0, '', '');
         setValue(form, 'event_id', '0');
         var deleteForm = widget.querySelector('[data-calsys-delete-event-form]');
@@ -463,6 +485,14 @@
         var availability = form.querySelector('[data-calsys-availability]');
         if (availability) {
             availability.textContent = '';
+        }
+        var acknowledgement = form.querySelector('[data-calsys-conflict-ack]');
+        if (acknowledgement) {
+            acknowledgement.hidden = true;
+            var checkbox = acknowledgement.querySelector('input');
+            checkbox.checked = false;
+            checkbox.required = false;
+            checkbox.disabled = true;
         }
         form.querySelectorAll('[data-calsys-existing-time]').forEach(function (option) { option.remove(); });
         setValue(form, 'booking_id', '0');
@@ -663,6 +693,10 @@
             var editEventForm = resetEventForm(widget);
             if (editEventForm) {
                 setValue(editEventForm, 'event_id', button.dataset.eventId);
+                var seriesScope = editEventForm.querySelector('[data-calsys-series-scope]');
+                if (seriesScope) {
+                    seriesScope.hidden = !button.dataset.recurrenceGroup;
+                }
                 var eventDeleteForm = widget.querySelector('[data-calsys-delete-event-form]');
                 if (eventDeleteForm) {
                     eventDeleteForm.hidden = false;
@@ -797,7 +831,7 @@
         if (event.target instanceof Element && event.target.closest('.calsys-action-form, .calsys-admin-form')) {
             updateFormControls(event.target.closest('.calsys-action-form, .calsys-admin-form'));
         }
-        if (event.target instanceof Element && event.target.matches('[name="booking_date"], [name="room_id"], [name="starts_at"], [name="ends_at"]')) {
+        if (event.target instanceof Element && event.target.matches('[name="booking_date"], [name="room_id"], [name="starts_at"], [name="ends_at"], [name="public_event"]')) {
             var roomForm = event.target.closest('[data-calsys-room-availability]');
             if (roomForm) {
                 updateRoomAvailability(roomForm);

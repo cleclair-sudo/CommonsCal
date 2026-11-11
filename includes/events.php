@@ -152,6 +152,10 @@ function calsys_save_event($frontend = false) {
     }
     $room_id = absint($_POST['room_id'] ?? 0);
     $recurring = !$event_id && isset($_POST['recurring']);
+    $edit_scope = isset($_POST['event_scope']) && is_string($_POST['event_scope']) ? wp_unslash($_POST['event_scope']) : 'one';
+    if (!in_array($edit_scope, array('one', 'future', 'all'), true) || (!$event_id && $edit_scope !== 'one')) {
+        calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+    }
     $frequency = $recurring ? sanitize_key(wp_unslash($_POST['recurrence_frequency'] ?? '')) : 'none';
     $end_type = $recurring ? sanitize_key(wp_unslash($_POST['recurrence_end_type'] ?? '')) : 'count';
     $occurrence_count = absint($_POST['recurrence_count'] ?? 0);
@@ -187,6 +191,8 @@ function calsys_save_event($frontend = false) {
         calsys_action_redirect($frontend, 'calsys-events', 'invalid');
     }
     $recurrence_group = $recurring && count($occurrences) > 1 ? wp_generate_uuid4() : '';
+    $room_form_booking = $frontend && !empty($_POST['staff_booking']) && !empty($_POST['public_event']);
+    $allow_first_conflict = $room_form_booking && ($_POST['confirm_room_conflict'] ?? '') === '1';
     $data = array(
         'title' => $title,
         'description' => $description,
@@ -219,7 +225,14 @@ function calsys_save_event($frontend = false) {
     }
     $table = calsys_table('events');
     $skipped = 0;
-    if ($event_id) {
+    $updated_ids = array();
+    if ($event_id && $edit_scope !== 'one') {
+        $updated_ids = calsys_update_event_series($event_id, $edit_scope, $data, $room_id, $equipment);
+        if (!is_array($updated_ids)) {
+            $wpdb->query('ROLLBACK');
+            calsys_action_redirect($frontend, 'calsys-events', is_string($updated_ids) ? $updated_ids : 'invalid');
+        }
+    } elseif ($event_id) {
         unset($data['recurrence_group']);
         array_splice($formats, 11, 1);
         $updated = $wpdb->update($table, $data, array('id' => $event_id), $formats, array('%d'));
@@ -238,8 +251,9 @@ function calsys_save_event($frontend = false) {
             $wpdb->query('ROLLBACK');
             calsys_action_redirect($frontend, 'calsys-events', $equipment_result === 'conflict' ? 'equipment_conflict' : 'invalid');
         }
+        $updated_ids[] = $event_id;
     } else {
-        foreach ($occurrences as $occurrence) {
+        foreach ($occurrences as $index => $occurrence) {
             $data['starts_at'] = $occurrence[0];
             $data['ends_at'] = $occurrence[1];
             $data['created_at'] = current_time('mysql');
@@ -248,10 +262,14 @@ function calsys_save_event($frontend = false) {
                 calsys_action_redirect($frontend, 'calsys-events', 'invalid');
             }
             $new_event_id = (int) $wpdb->insert_id;
-            $saved_room = calsys_sync_linked_room_reservations('event', $new_event_id, $room_id, $occurrence[0], $occurrence[1]);
+            $saved_room = calsys_sync_linked_room_reservations('event', $new_event_id, $room_id, $occurrence[0], $occurrence[1], $index === 0 && $allow_first_conflict);
             if ($saved_room === false) {
                 $wpdb->query('ROLLBACK');
                 calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+            }
+            if ($saved_room && $room_form_booking && $index === 0) {
+                $wpdb->query('ROLLBACK');
+                calsys_action_redirect($frontend, 'calsys-rooms', 'room_conflict');
             }
             $skipped += $saved_room;
             $equipment_result = calsys_sync_equipment('event', $new_event_id, $equipment, $occurrence[0], $occurrence[1], 'approved');
@@ -264,6 +282,17 @@ function calsys_save_event($frontend = false) {
     if ($wpdb->query('COMMIT') === false) {
         $wpdb->query('ROLLBACK');
         calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+    }
+    $waitlist_email_failed = false;
+    foreach ($updated_ids as $updated_id) {
+        $waitlist_result = calsys_promote_event_waitlist($updated_id);
+        if ($waitlist_result === 'error') {
+            calsys_action_redirect($frontend, 'calsys-events', 'saved_waitlist_error');
+        }
+        $waitlist_email_failed = $waitlist_email_failed || $waitlist_result === 'email_failed';
+    }
+    if ($waitlist_email_failed) {
+        calsys_action_redirect($frontend, 'calsys-events', 'saved_waitlist_email_failed');
     }
     calsys_action_redirect($frontend, 'calsys-events', $skipped ? 'saved_room_conflicts' : 'saved', $skipped);
 }
@@ -289,15 +318,56 @@ function calsys_delete_event($frontend = false) {
         $wpdb->query('ROLLBACK');
         calsys_action_redirect($frontend, 'calsys-events', 'invalid');
     }
-    $registrations_deleted = $wpdb->delete(calsys_table('registrations'), array('event_id' => $event_id), array('%d'));
-    $bookings_deleted = $wpdb->delete(calsys_table('bookings'), array('source_type' => 'event', 'source_id' => $event_id), array('%s', '%d'));
-    $equipment_deleted = $wpdb->delete(calsys_table('equipment_reservations'), array('source_type' => 'event', 'source_id' => $event_id), array('%s', '%d'));
-    $event_deleted = $wpdb->delete(calsys_table('events'), array('id' => $event_id), array('%d'));
-    if ($registrations_deleted === false || $bookings_deleted === false || $equipment_deleted === false || $event_deleted !== 1 || $wpdb->query('COMMIT') === false) {
+    $event = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . calsys_table('events') . " WHERE id = %d FOR UPDATE", $event_id));
+    if (!$event) {
         $wpdb->query('ROLLBACK');
         calsys_action_redirect($frontend, 'calsys-events', 'invalid');
     }
-    calsys_action_redirect($frontend, 'calsys-events', 'event_deleted');
+    $attendees = $wpdb->get_results($wpdb->prepare(
+        "SELECT name, email FROM " . calsys_table('registrations') . " WHERE event_id = %d",
+        $event_id
+    ));
+    if ($wpdb->last_error || !is_array($attendees)) {
+        error_log('CommonsCal: unable to load event attendees for cancellation: ' . $wpdb->last_error);
+        $wpdb->query('ROLLBACK');
+        calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+    }
+    $waiting = $wpdb->get_results($wpdb->prepare(
+        "SELECT name, email FROM " . calsys_table('waitlist') . " WHERE event_id = %d",
+        $event_id
+    ));
+    if ($wpdb->last_error || !is_array($waiting)) {
+        error_log('CommonsCal: unable to load event attendees for cancellation: ' . $wpdb->last_error);
+        $wpdb->query('ROLLBACK');
+        calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+    }
+    $registrations_deleted = $wpdb->delete(calsys_table('registrations'), array('event_id' => $event_id), array('%d'));
+    $waitlist_deleted = $wpdb->delete(calsys_table('waitlist'), array('event_id' => $event_id), array('%d'));
+    $bookings_deleted = $wpdb->delete(calsys_table('bookings'), array('source_type' => 'event', 'source_id' => $event_id), array('%s', '%d'));
+    $equipment_deleted = $wpdb->delete(calsys_table('equipment_reservations'), array('source_type' => 'event', 'source_id' => $event_id), array('%s', '%d'));
+    $event_deleted = $wpdb->delete(calsys_table('events'), array('id' => $event_id), array('%d'));
+    if ($registrations_deleted === false || $waitlist_deleted === false || $bookings_deleted === false || $equipment_deleted === false || $event_deleted !== 1 || $wpdb->query('COMMIT') === false) {
+        $wpdb->query('ROLLBACK');
+        calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+    }
+    $email_failed = false;
+    if ($event->starts_at > current_time('mysql')) {
+        foreach (array_merge($attendees, $waiting) as $person) {
+            if (!is_email($person->email)) {
+                continue;
+            }
+            $sent = calsys_send_email(
+                $person->email,
+                sprintf(__('Event cancelled: %s', 'community-calendar-study-rooms'), $event->title),
+                sprintf(__('Hello %1$s, %2$s scheduled for %3$s has been cancelled.', 'community-calendar-study-rooms'),
+                    $person->name,
+                    $event->title,
+                    mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at))
+            );
+            $email_failed = !$sent || $email_failed;
+        }
+    }
+    calsys_action_redirect($frontend, 'calsys-events', $email_failed ? 'event_deleted_email_failed' : 'event_deleted');
 }
 
 /** Handles event deletion submitted through the public calendar editor. */
