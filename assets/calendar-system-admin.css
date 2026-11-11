@@ -1,0 +1,600 @@
+.calsys-admin-page {
+    --calsys-admin-border: #dcdcde;
+    --calsys-admin-ink: #1d2327;
+    --calsys-admin-muted: #646970;
+    --calsys-admin-surface: #fff;
+    --calsys-admin-tint: #f6f7f7;
+    color: var(--calsys-admin-ink);
+    max-width: 1440px;
+}
+
+.calsys-admin-page .calsys-admin-intro {
+    color: var(--calsys-admin-muted);
+    font-size: 14px;
+    margin: 8px 0 22px;
+    max-width: 760px;
+}
+
+.calsys-admin-settings {
+    max-width: 1080px;
+}
+
+.calsys-settings-nav {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 18px 0;
+    padding: 12px;
+}
+
+.calsys-settings-nav a {
+    background: #f0f6fc;
+    border-radius: 999px;
+    color: #135e96;
+    font-weight: 600;
+    padding: 7px 12px;
+    text-decoration: none;
+}
+
+.calsys-settings-nav a:hover,
+.calsys-settings-nav a:focus {
+    background: #dbeaf7;
+    color: #0a4b78;
+}
+
+.calsys-settings-card {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 10px;
+    margin: 16px 0;
+    padding: 20px 24px;
+    scroll-margin-top: 40px;
+}
+
+.calsys-settings-card h2 {
+    border-bottom: 1px solid #f0f0f1;
+    font-size: 17px;
+    margin: 0 0 12px;
+    padding: 0 0 12px;
+}
+
+.calsys-settings-card h2:not(:first-child) {
+    margin-top: 24px;
+}
+
+.calsys-settings-card > p {
+    color: #646970;
+}
+
+.calsys-settings-card .form-table {
+    margin-top: 0;
+}
+
+.calsys-settings-card .form-table th {
+    padding-left: 0;
+}
+
+.calsys-settings-card .widefat {
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.calsys-settings-card input[type="number"] {
+    max-width: 120px;
+}
+
+.calsys-shortcode-options {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 16px;
+}
+
+.calsys-shortcode-options > div {
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+}
+
+.calsys-shortcode-options code {
+    display: block;
+    font-size: 14px;
+    padding: 8px;
+    user-select: all;
+}
+
+.calsys-admin-settings .submit {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 8px;
+    margin-top: 16px;
+    padding: 8px 18px;
+}
+
+.calsys-admin-stats {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 20px 0;
+}
+
+.calsys-admin-rooms .calsys-admin-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.calsys-admin-stat {
+    background: var(--calsys-admin-surface);
+    border: 1px solid var(--calsys-admin-border);
+    border-radius: 8px;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-height: 112px;
+    padding: 18px;
+    text-decoration: none;
+}
+
+a.calsys-admin-stat:hover,
+a.calsys-admin-stat:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    color: inherit;
+}
+
+.calsys-admin-stat.is-attention {
+    border-left: 4px solid #dba617;
+}
+
+.calsys-admin-stat-label {
+    color: var(--calsys-admin-muted);
+    font-weight: 600;
+}
+
+.calsys-admin-stat strong {
+    font-size: 30px;
+    line-height: 1.15;
+}
+
+.calsys-admin-stat > span:last-child {
+    color: var(--calsys-admin-muted);
+    font-size: 12px;
+}
+
+.calsys-admin-dashboard-grid {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 18px 0;
+}
+
+.calsys-admin-room-grid {
+    align-items: start;
+}
+
+.calsys-admin-card {
+    background: var(--calsys-admin-surface);
+    border: 1px solid var(--calsys-admin-border);
+    border-radius: 8px;
+    margin: 18px 0;
+    padding: 20px;
+}
+
+.calsys-admin-dashboard-grid > .calsys-admin-card {
+    margin: 0;
+}
+
+.calsys-admin-card h2 {
+    font-size: 18px;
+    margin: 0 0 12px;
+}
+
+.calsys-admin-card h3 {
+    font-size: 14px;
+    margin: 18px 0 8px;
+}
+
+.calsys-admin-card-heading {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.calsys-admin-card-heading h2 {
+    margin-bottom: 4px;
+}
+
+.calsys-admin-card-heading p,
+.calsys-admin-card > p {
+    color: var(--calsys-admin-muted);
+    margin: 0 0 12px;
+}
+
+.calsys-admin-activity-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.calsys-admin-activity-list li {
+    align-items: flex-start;
+    border-top: 1px solid #f0f0f1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 0;
+}
+
+.calsys-admin-activity-list li:first-child {
+    border-top: 0;
+}
+
+.calsys-admin-activity-list li > span:last-child {
+    color: var(--calsys-admin-muted);
+    font-size: 12px;
+}
+
+.calsys-admin-feed {
+    max-height: 640px;
+    overflow-y: auto;
+}
+
+.calsys-admin-feed li {
+    display: grid;
+    gap: 4px 12px;
+    grid-template-columns: minmax(100px, auto) 1fr;
+}
+
+.calsys-admin-feed li > span:last-child {
+    grid-column: 2;
+}
+
+.calsys-admin-feed li > a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.calsys-admin-feed li > a:hover,
+.calsys-admin-feed li > a:focus {
+    color: #135e96;
+    text-decoration: underline;
+}
+
+.calsys-admin-feed-kind {
+    align-self: start;
+    background: #f0f0f1;
+    border-radius: 12px;
+    color: #50575e;
+    font-size: 11px;
+    font-weight: 600;
+    justify-self: start;
+    padding: 2px 8px;
+}
+
+.calsys-admin-feed-kind.is-pending {
+    background: #fcf0c5;
+    color: #614a00;
+}
+
+.calsys-admin-status {
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+}
+
+.calsys-admin-status.is-pending {
+    background: #fcf0c5;
+    color: #614a00;
+}
+
+.calsys-admin-empty {
+    background: var(--calsys-admin-tint);
+    border-radius: 5px;
+    color: var(--calsys-admin-muted);
+    padding: 12px;
+}
+
+.calsys-review-list {
+    list-style: none;
+    margin: 20px 0;
+    max-width: 1000px;
+    padding: 0;
+}
+
+.calsys-review-card,
+.calsys-event-registration-link {
+    margin: 0 0 12px;
+}
+
+.calsys-review-heading {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: space-between;
+}
+
+.calsys-review-heading h2 {
+    margin: 10px 0 4px;
+}
+
+.calsys-review-date {
+    color: var(--calsys-admin-muted);
+    margin: 0;
+}
+
+.calsys-review-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.calsys-review-details {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    margin: 20px 0 0;
+}
+
+.calsys-review-details dt {
+    color: var(--calsys-admin-muted);
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.calsys-review-details dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.calsys-event-registration-link {
+    align-items: center;
+    color: inherit;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+    text-decoration: none;
+}
+
+.calsys-event-registration-link:hover,
+.calsys-event-registration-link:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    color: inherit;
+}
+
+.calsys-event-registration-link > span:first-child {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.calsys-event-registration-link > span:first-child > span {
+    color: var(--calsys-admin-muted);
+}
+
+.calsys-registration-count {
+    color: #135e96;
+    font-weight: 600;
+}
+
+.calsys-registration-table-scroll {
+    overflow-x: auto;
+}
+
+.calsys-registration-table-scroll .widefat {
+    min-width: 650px;
+}
+
+.calsys-equipment-inventory-row,
+.calsys-report-filter {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 14px 0;
+}
+
+.calsys-equipment-inventory-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.calsys-equipment-inventory-row input[type="number"] {
+    width: 90px;
+}
+
+.calsys-equipment-inventory-row .calsys-equipment-active {
+    align-items: center;
+    flex-direction: row;
+    min-height: 30px;
+}
+
+.calsys-admin-shortcuts {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.calsys-admin-shortcuts h2 {
+    flex-basis: 100%;
+}
+
+.calsys-admin-page .calsys-admin-form {
+    max-width: none;
+}
+
+.calsys-admin-page .calsys-admin-form input:not([type="checkbox"]),
+.calsys-admin-page .calsys-admin-form select,
+.calsys-admin-page .calsys-admin-form textarea {
+    max-width: 100%;
+}
+
+.calsys-admin-form .calsys-event-image-field {
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    margin: 12px 0;
+    padding: 10px 14px;
+}
+
+.calsys-admin-form .calsys-event-image-field legend {
+    font-weight: 600;
+    padding: 0 5px;
+}
+
+.calsys-admin-form .calsys-event-image-preview:not(:empty) {
+    margin-bottom: 10px;
+}
+
+.calsys-admin-form .calsys-event-image-preview-img {
+    border-radius: 4px;
+    display: block;
+    height: auto;
+    max-height: 180px;
+    max-width: 100%;
+    object-fit: cover;
+    width: auto;
+}
+
+.calsys-settings-room-grid {
+    display: grid;
+    gap: 24px;
+    grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.calsys-settings-room-grid > div {
+    min-width: 0;
+}
+
+.calsys-admin-booking-form {
+    display: grid;
+    gap: 0 18px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.calsys-admin-booking-form p {
+    margin: 8px 0 14px;
+}
+
+.calsys-admin-booking-form > p:last-of-type {
+    grid-column: 1 / -1;
+}
+
+.calsys-admin-page .widefat td,
+.calsys-admin-page .widefat th {
+    vertical-align: middle;
+}
+
+.calsys-admin-page .widefat td form {
+    margin: 2px 0;
+}
+
+.calsys-admin-calendar-toolbar {
+    align-items: center;
+    background: var(--calsys-admin-tint);
+    border: 1px solid var(--calsys-admin-border);
+    border-radius: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: space-between;
+    margin: 18px 0;
+    padding: 12px 16px;
+}
+
+.calsys-admin-calendar-toolbar span {
+    color: var(--calsys-admin-muted);
+}
+
+.calsys-admin-calendar-card {
+    overflow: hidden;
+}
+
+.calsys-admin-calendar-card .calsys-calendar {
+    margin: 0;
+}
+
+.calsys-admin-calendar-card .calsys-calendar-heading h2 {
+    font-size: 18px;
+}
+
+.calsys-admin-calendar-card .calsys-calendar-scroll {
+    overflow-x: auto;
+}
+
+.calsys-admin-calendar-card .calsys-calendar-table {
+    min-width: 760px;
+}
+
+.calsys-admin-calendar-card .calsys-calendar-day {
+    min-height: 100px;
+}
+
+.calsys-admin-calendar-card .calsys-calendar-entry {
+    max-width: 100%;
+}
+
+.calsys-admin-calendar-card .calsys-entry-action {
+    margin: 2px 0;
+}
+
+.calsys-admin-staff .calsys-calendar-widget {
+    margin: 0;
+}
+
+@media (max-width: 1000px) {
+    .calsys-admin-stats,
+    .calsys-admin-rooms .calsys-admin-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .calsys-admin-booking-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .calsys-settings-room-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 700px) {
+    .calsys-admin-dashboard-grid,
+    .calsys-admin-stats,
+    .calsys-admin-rooms .calsys-admin-stats,
+    .calsys-admin-booking-form {
+        grid-template-columns: 1fr;
+    }
+
+    .calsys-settings-card {
+        padding: 14px;
+    }
+
+    .calsys-shortcode-options {
+        grid-template-columns: 1fr;
+    }
+
+    .calsys-admin-card {
+        padding: 14px;
+    }
+
+    .calsys-admin-booking-form > p:last-of-type {
+        grid-column: auto;
+    }
+}

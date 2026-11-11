@@ -1,0 +1,866 @@
+.calsys-events,
+.calsys-calendar-widget,
+.calsys-room-request {
+    --calsys-border: #d7dce2;
+    --calsys-accent: #1d5f8a;
+    --calsys-ink: #1f2933;
+    --calsys-muted: #596675;
+    color: inherit;
+}
+
+.calsys-calendar-widget {
+    margin-block: 1.5rem;
+}
+
+.calsys-access-links {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-bottom: 0.6rem;
+}
+
+.calsys-access-links a {
+    color: var(--calsys-accent, #1d5f8a);
+    font-size: 0.9rem;
+    font-weight: 650;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+.calsys-access-status {
+    color: var(--calsys-muted, #596675);
+    font-size: 0.85rem;
+}
+
+.calsys-access-links a:focus-visible {
+    outline: 3px solid #f0ad4e;
+    outline-offset: 2px;
+}
+
+.calsys-calendar-widget-events {
+    --calsys-accent: #1d5f8a;
+}
+
+.calsys-calendar-widget-rooms {
+    --calsys-accent: #99500b;
+}
+
+.calsys-calendar-widget-staff {
+    --calsys-accent: #59458d;
+}
+
+.calsys-calendar {
+    --calsys-border: #d7dce2;
+    --calsys-accent: #1d5f8a;
+    --calsys-event: #1d5f8a;
+    --calsys-room: #99500b;
+    --calsys-staff: #59458d;
+    margin: 0 0 2rem;
+    width: 100%;
+}
+
+.calsys-calendar-heading {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.calsys-calendar-heading h2 {
+    margin: 0;
+}
+
+.calsys-calendar-navigation {
+    align-items: center;
+    display: flex;
+    gap: 0.75rem;
+}
+
+.calsys-calendar-navigation a {
+    border: 1px solid var(--calsys-border);
+    border-radius: 0.25rem;
+    display: inline-block;
+    padding: 0.4rem 0.65rem;
+    text-decoration: none;
+}
+
+.calsys-category-filter {
+    background: #f7f9fb;
+    border: 1px solid var(--calsys-border, #d7dce2);
+    border-radius: 0.75rem;
+    margin: 0 0 0.9rem;
+    padding: 1rem;
+}
+
+.calsys-category-filter-options {
+    border: 0;
+    margin: 0;
+    min-width: 0;
+    padding: 0;
+}
+
+.calsys-category-filter-options legend {
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 0;
+}
+
+.calsys-category-filter-help {
+    color: var(--calsys-muted, #596675);
+    font-size: 0.9rem;
+    margin: 0.25rem 0 0.75rem;
+}
+
+.calsys-category-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.calsys-category-choice {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--calsys-border, #d7dce2);
+    border-radius: 999px;
+    cursor: pointer;
+    display: inline-flex;
+    gap: 0.45rem;
+    line-height: 1.3;
+    padding: 0.45rem 0.8rem;
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.calsys-category-choice:has(input:checked) {
+    background: #e8f1f8;
+    border-color: var(--calsys-accent, #1d5f8a);
+    color: var(--calsys-accent, #1d5f8a);
+    font-weight: 650;
+}
+
+.calsys-category-choice input {
+    accent-color: var(--calsys-accent, #1d5f8a);
+    margin: 0;
+}
+
+.calsys-category-choice:focus-within {
+    outline: 3px solid #f0ad4e;
+    outline-offset: 2px;
+}
+
+.calsys-category-filter-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.85rem;
+}
+
+.calsys-category-filter-actions button {
+    background: var(--calsys-accent, #1d5f8a);
+    border: 1px solid var(--calsys-accent, #1d5f8a);
+    border-radius: 0.35rem;
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 650;
+    padding: 0.5rem 0.85rem;
+}
+
+.calsys-category-filter-actions a {
+    color: var(--calsys-accent, #1d5f8a);
+    font-size: 0.9rem;
+    text-underline-offset: 0.15em;
+}
+
+.calsys-calendar-entry-category,
+.calsys-event-category {
+    color: var(--calsys-muted, #596675);
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.calsys-calendar-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+}
+
+.calsys-calendar-table {
+    border-collapse: collapse;
+    min-width: 42rem;
+    table-layout: fixed;
+    width: 100%;
+}
+
+.calsys-calendar-table th,
+.calsys-calendar-day {
+    border: 1px solid var(--calsys-border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.calsys-calendar-table th {
+    background: #f4f6f8;
+    padding: 0.55rem;
+}
+
+.calsys-calendar-day {
+    height: 8rem;
+    padding: 0.4rem;
+    width: 14.285%;
+}
+
+.calsys-calendar-day.is-outside-month {
+    background: #f8f9fa;
+    color: #707780;
+}
+
+.calsys-calendar-day.is-today {
+    box-shadow: inset 0 0 0 2px var(--calsys-accent);
+}
+
+.calsys-calendar-date {
+    display: inline-block;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+}
+
+.calsys-day-action,
+.calsys-entry-action {
+    background: transparent;
+    border: 1px solid currentColor;
+    border-radius: 0.3rem;
+    color: var(--calsys-accent);
+    cursor: pointer;
+    display: inline-block;
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 650;
+    line-height: 1.25;
+    margin: 0.1rem 0.15rem 0.25rem 0;
+    padding: 0.22rem 0.4rem;
+    text-decoration: none;
+}
+
+.calsys-day-action:hover,
+.calsys-entry-action:hover {
+    background: var(--calsys-accent);
+    color: #fff;
+    text-decoration: none;
+}
+
+.calsys-day-action:focus-visible,
+.calsys-entry-action:focus-visible,
+.calsys-form button:focus-visible,
+.calsys-form input:focus-visible,
+.calsys-form select:focus-visible,
+.calsys-form textarea:focus-visible {
+    outline: 3px solid #f0ad4e;
+    outline-offset: 2px;
+}
+
+.calsys-calendar-entries {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.calsys-calendar-entry {
+    border-left: 3px solid var(--calsys-event);
+    background: #edf5fa;
+    background: color-mix(in srgb, var(--calsys-entry-color, var(--calsys-event)) 12%, white);
+    border-radius: 0.15rem;
+    font-size: 0.82rem;
+    line-height: 1.25;
+    margin: 0 0 0.15rem;
+    overflow-wrap: anywhere;
+    padding: 0.15rem 0.25rem;
+}
+
+.calsys-entry-decision {
+    display: inline;
+}
+
+.calsys-entry-decision .calsys-entry-action {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.3rem;
+}
+
+.calsys-calendar-entry.is-room {
+    border-left-color: var(--calsys-entry-color, var(--calsys-room));
+}
+
+.calsys-calendar-entry.is-staff-meeting {
+    border-left-color: var(--calsys-entry-color, var(--calsys-staff));
+}
+
+.calsys-calendar-entry[class*="is-staff-"] {
+    border-left-color: var(--calsys-entry-color, var(--calsys-staff));
+}
+
+.calsys-calendar-entry-time,
+.calsys-calendar-entry-title,
+.calsys-calendar-entry-detail {
+    display: inline;
+}
+
+.calsys-calendar-entry-time::after {
+    content: " · ";
+}
+
+.calsys-equipment-fields {
+    border: 1px solid var(--calsys-border);
+    border-radius: 0.3rem;
+    margin: 0.5rem 0;
+    padding: 0.75rem;
+}
+
+.calsys-equipment-fields label {
+    align-items: center;
+    display: flex;
+    gap: 0.6rem;
+    justify-content: space-between;
+    margin: 0.4rem 0;
+}
+
+.calsys-equipment-fields input[type="number"] {
+    width: 5rem;
+}
+
+.calsys-event-title-link {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    color: var(--calsys-accent);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 650;
+    padding: 0;
+    text-align: left;
+    text-decoration: underline;
+}
+
+.calsys-event-title-link:focus-visible {
+    outline: 3px solid #f0ad4e;
+    outline-offset: 2px;
+}
+
+.calsys-calendar-entry-time {
+    font-weight: 700;
+}
+
+.calsys-calendar-entry-detail {
+    font-size: 0.9em;
+}
+
+.calsys-weekday-long {
+    display: none;
+}
+
+.calsys-privacy-note {
+    font-size: 0.9em;
+    font-weight: 400;
+}
+
+.calsys-event {
+    border: 1px solid var(--calsys-border);
+    border-radius: 0.5rem;
+    margin: 0 0 1.5rem;
+    padding: 1.25rem;
+}
+
+.calsys-event-image,
+.calsys-event-detail-image img {
+    border-radius: 0.5rem;
+    display: block;
+    height: auto;
+    max-width: 100%;
+}
+
+.calsys-event-image {
+    margin-bottom: 1rem;
+}
+
+.calsys-event-detail-image {
+    margin: 0 1.5rem 1rem;
+}
+
+.calsys-event-detail-image img {
+    max-height: 24rem;
+    object-fit: cover;
+    width: 100%;
+}
+
+.calsys-event-image-field {
+    border: 1px solid var(--calsys-border);
+    border-radius: 0.5rem;
+    margin: 0;
+    padding: 0.8rem;
+}
+
+.calsys-event-image-field legend {
+    font-weight: 650;
+    padding: 0 0.35rem;
+}
+
+.calsys-event-image-preview:not(:empty) {
+    margin-bottom: 0.75rem;
+}
+
+.calsys-event-image-preview-img {
+    border-radius: 0.35rem;
+    display: block;
+    height: auto;
+    max-height: 12rem;
+    max-width: 100%;
+    object-fit: cover;
+    width: auto;
+}
+
+.calsys-upcoming-events {
+    margin-block: 1.5rem;
+}
+
+.calsys-upcoming-events-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.calsys-upcoming-event-card {
+    background: #fff;
+    border: 1px solid var(--calsys-border);
+    border-radius: 0.65rem;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.calsys-upcoming-event-image {
+    aspect-ratio: 4 / 3;
+    display: block;
+    height: auto;
+    object-fit: cover;
+    width: 100%;
+}
+
+.calsys-upcoming-event-content {
+    align-items: flex-start;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    padding: 1rem;
+}
+
+.calsys-upcoming-event-content h3 {
+    font-size: 1.1rem;
+    margin: 0 0 0.5rem;
+}
+
+.calsys-upcoming-event-content p {
+    margin: 0 0 0.65rem;
+}
+
+.calsys-upcoming-event-content .calsys-upcoming-event-date {
+    color: var(--calsys-muted);
+    font-size: 0.88rem;
+}
+
+.calsys-upcoming-event-action {
+    background: var(--calsys-accent);
+    border: 1px solid var(--calsys-accent);
+    border-radius: 0.35rem;
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 650;
+    margin-top: auto;
+    padding: 0.5rem 0.75rem;
+}
+
+.calsys-upcoming-event-action:hover,
+.calsys-upcoming-event-action:focus-visible {
+    filter: brightness(0.9);
+}
+
+.calsys-upcoming-event-action:focus-visible {
+    outline: 3px solid #f0ad4e;
+    outline-offset: 2px;
+}
+
+.calsys-event h2,
+.calsys-room-request h2,
+.calsys-action-card h2 {
+    margin-top: 0;
+}
+
+.calsys-action-card {
+    background: #fff;
+    border: 1px solid var(--calsys-border, #d7dce2);
+    border-radius: 0.85rem;
+    box-shadow: 0 0.5rem 1.5rem rgba(20, 35, 50, 0.08);
+    margin: 1.5rem 0;
+    overflow: hidden;
+}
+
+.calsys-modal {
+    border: 0;
+    border-radius: 0.9rem;
+    box-sizing: border-box;
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
+    max-width: min(42rem, calc(100vw - 2rem));
+    overflow-y: auto;
+    padding: 0;
+    width: 100%;
+}
+
+.calsys-modal[open],
+.calsys-modal.is-open {
+    bottom: auto;
+    display: block;
+    inset: 50% auto auto 50%;
+    left: 50%;
+    margin: 0;
+    position: fixed;
+    right: auto;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 100000;
+}
+
+.calsys-modal.is-open {
+    box-shadow: 0 0 0 100vmax rgba(15, 23, 42, 0.62);
+}
+
+.calsys-modal::backdrop {
+    background: rgba(15, 23, 42, 0.62);
+    backdrop-filter: blur(2px);
+}
+
+.calsys-modal .calsys-action-card {
+    border: 0;
+    border-radius: 0.9rem;
+    box-shadow: none;
+    margin: 0;
+    overflow: visible;
+}
+
+.calsys-registration-dialog .calsys-event-description,
+.calsys-registration-dialog .calsys-registration-full {
+    margin: 1rem 1.5rem;
+}
+
+.calsys-registration-dialog .calsys-action-form {
+    padding-top: 0.5rem;
+}
+
+.calsys-dialog-title-row {
+    align-items: center;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+}
+
+.calsys-dialog-title-row h2 {
+    margin: 0;
+}
+
+.calsys-dialog-close {
+    align-items: center;
+    background: transparent;
+    border: 1px solid #bcc6d0;
+    border-radius: 50%;
+    color: var(--calsys-ink, #1f2933);
+    cursor: pointer;
+    display: inline-flex;
+    flex: 0 0 auto;
+    font: inherit;
+    font-size: 1.5rem;
+    height: 2.25rem;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    width: 2.25rem;
+}
+
+.calsys-dialog-close:focus-visible {
+    outline: 3px solid #f0ad4e;
+    outline-offset: 2px;
+}
+
+.calsys-action-card-heading {
+    background: linear-gradient(135deg, #f3f7fa, #fff);
+    border-bottom: 1px solid var(--calsys-border, #d7dce2);
+    padding: 1.25rem 1.5rem 1rem;
+}
+
+.calsys-action-card-heading p {
+    color: var(--calsys-muted, #596675);
+    margin-bottom: 0;
+}
+
+.calsys-action-kicker {
+    color: var(--calsys-accent, #1d5f8a);
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.35rem;
+    text-transform: uppercase;
+}
+
+.calsys-event-date {
+    font-weight: 600;
+}
+
+.calsys-form {
+    max-width: 100%;
+}
+
+.calsys-action-form {
+    padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.calsys-form-grid {
+    display: grid;
+    gap: 0.9rem 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.calsys-form-grid p {
+    margin: 0;
+}
+
+.calsys-form-wide {
+    grid-column: 1 / -1;
+}
+
+.calsys-form label {
+    display: block;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.calsys-form input,
+.calsys-form select,
+.calsys-form textarea {
+    background-color: #fff;
+    border: 1px solid #bcc6d0;
+    border-radius: 0.4rem;
+    box-sizing: border-box;
+    display: block;
+    margin-top: 0.35rem;
+    max-width: 100%;
+    min-height: 2.8rem;
+    padding: 0.5rem;
+    width: 100%;
+}
+
+.calsys-form textarea {
+    min-height: 6rem;
+    resize: vertical;
+}
+
+.calsys-form label[hidden] {
+    display: none;
+}
+
+.calsys-registration-fields-editor {
+    border: 1px solid #d5dce3;
+    border-radius: 0.5rem;
+    margin: 0;
+    padding: 1rem;
+}
+
+.calsys-registration-fields-editor legend {
+    font-weight: 700;
+    padding: 0 0.35rem;
+}
+
+.calsys-registration-field-row {
+    align-items: end;
+    border-bottom: 1px solid #e1e6eb;
+    display: grid;
+    gap: 0.65rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 0.8rem;
+    padding-bottom: 0.8rem;
+}
+
+.calsys-registration-field-required {
+    align-items: center;
+    display: flex !important;
+    gap: 0.45rem;
+}
+
+.calsys-form .calsys-registration-field-required input {
+    margin: 0;
+    min-height: auto;
+    width: auto;
+}
+
+.calsys-form .calsys-registration-field-row > button {
+    justify-self: start;
+}
+
+.calsys-form .calsys-checkbox-label {
+    align-items: center;
+    display: flex;
+    gap: 0.55rem;
+}
+
+.calsys-form .calsys-checkbox-label input {
+    flex: 0 0 auto;
+    margin: 0;
+    min-height: auto;
+    width: auto;
+}
+
+.calsys-form button {
+    background: var(--calsys-accent);
+    border: 0;
+    border-radius: 0.25rem;
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    min-height: 2.75rem;
+    padding: 0.6rem 1rem;
+}
+
+.calsys-form button:hover,
+.calsys-form button:focus {
+    filter: brightness(0.9);
+}
+
+.calsys-action-buttons {
+    align-items: center;
+    background: #fff;
+    border-top: 1px solid var(--calsys-border, #d7dce2);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    margin-top: 1rem;
+    padding: 0.75rem 0;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+}
+
+.calsys-delete-form[hidden] {
+    display: none;
+}
+
+.calsys-delete-form {
+    border-top: 1px solid var(--calsys-border, #d7dce2);
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+}
+
+.calsys-delete-button {
+    background: #a32929 !important;
+    border: 0;
+    border-radius: 0.4rem;
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    min-height: 2.75rem;
+    padding: 0.6rem 1rem;
+}
+
+.calsys-delete-button:hover,
+.calsys-delete-button:focus-visible {
+    filter: brightness(0.9);
+}
+
+.calsys-delete-form p {
+    color: #5b2525;
+    font-size: 0.9em;
+    margin: 0.5rem 0 0;
+}
+
+.calsys-form .calsys-button-secondary {
+    background: #fff;
+    border: 1px solid #bcc6d0;
+    color: var(--calsys-ink, #1f2933);
+}
+
+.calsys-event-registration-list {
+    margin-top: 1.5rem;
+}
+
+.calsys-notice {
+    border-left: 4px solid var(--calsys-accent);
+    background: #f3f7fa;
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+}
+
+.calsys-admin-form {
+    max-width: 42rem;
+}
+
+.calsys-types-table input.regular-text {
+    max-width: 100%;
+}
+
+.calsys-types-table .wp-picker-container {
+    display: inline-block;
+}
+
+.calsys-inline-form {
+    display: inline-block;
+    margin-right: 0.25rem;
+}
+
+@media (min-width: 48rem) {
+    .calsys-calendar-day {
+        height: 9rem;
+        padding: 0.55rem;
+    }
+
+    .calsys-weekday-short {
+        display: none;
+    }
+
+    .calsys-weekday-long {
+        display: inline;
+    }
+}
+
+@media (max-width: 34rem) {
+    .calsys-upcoming-events-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .calsys-form-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .calsys-registration-field-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .calsys-form-wide {
+        grid-column: auto;
+    }
+
+    .calsys-action-card-heading,
+    .calsys-action-form {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}
+
+@media (min-width: 35rem) and (max-width: 54rem) {
+    .calsys-upcoming-events-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
