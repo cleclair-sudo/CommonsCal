@@ -410,9 +410,10 @@ function calsys_admin_settings_page() {
             <h2><?php esc_html_e('Public booking privacy', 'community-calendar-study-rooms'); ?></h2>
             <table class="form-table" role="presentation"><tbody>
                 <tr><th scope="row"><?php esc_html_e('Room calendar details', 'community-calendar-study-rooms'); ?></th>
-                    <td><label><input name="privacy[show_room_names]" type="checkbox" value="1" <?php checked($settings['privacy']['show_room_names']); ?>> <?php esc_html_e('Show room names to visitors', 'community-calendar-study-rooms'); ?></label><br>
+                    <td><label><input name="privacy[hide_guest_room_bookings]" type="checkbox" value="1" <?php checked($settings['privacy']['hide_guest_room_bookings']); ?>> <?php esc_html_e('Hide room bookings from logged-out visitors', 'community-calendar-study-rooms'); ?></label><br>
+                        <label><input name="privacy[show_room_names]" type="checkbox" value="1" <?php checked($settings['privacy']['show_room_names']); ?>> <?php esc_html_e('Show room names to visitors', 'community-calendar-study-rooms'); ?></label><br>
                         <label><input name="privacy[show_room_status]" type="checkbox" value="1" <?php checked($settings['privacy']['show_room_status']); ?>> <?php esc_html_e('Show pending/approved status to visitors', 'community-calendar-study-rooms'); ?></label>
-                        <p class="description"><?php esc_html_e('Requester names, emails, and event registrant contact details remain private to staff.', 'community-calendar-study-rooms'); ?></p></td></tr>
+                        <p class="description"><?php esc_html_e('When bookings are hidden, logged-out visitors still see published events and can request rooms. Signed-in users continue to see public bookings. Requester names, emails, and event registrant contact details remain private to staff.', 'community-calendar-study-rooms'); ?></p></td></tr>
                 <tr><th scope="row"><label for="calsys-retention-days"><?php esc_html_e('Personal data retention', 'community-calendar-study-rooms'); ?></label></th>
                     <td><input id="calsys-retention-days" name="privacy[retention_days]" type="number" min="0" max="3650" step="1" value="<?php echo esc_attr($settings['privacy']['retention_days']); ?>"> <?php esc_html_e('days after a booking or event ends (0 = disabled)', 'community-calendar-study-rooms'); ?>
                     <p class="description"><?php esc_html_e('When enabled, past booking and registration contact details and answers are permanently anonymized; past waitlist entries are removed. Totals and room usage are retained. Cleanup runs through WordPress scheduled tasks.', 'community-calendar-study-rooms'); ?></p></td></tr>
@@ -684,7 +685,7 @@ function calsys_save_settings() {
     $posted_privacy = isset($_POST['privacy']) && is_array($_POST['privacy'])
         ? wp_unslash($_POST['privacy'])
         : array();
-    foreach (array('show_room_names', 'show_room_status', 'retention_days') as $privacy_key) {
+    foreach (array('hide_guest_room_bookings', 'show_room_names', 'show_room_status', 'retention_days') as $privacy_key) {
         if (isset($posted_privacy[$privacy_key]) && !is_scalar($posted_privacy[$privacy_key])) {
             calsys_admin_redirect('calsys-settings', 'settings_invalid');
         }
@@ -742,6 +743,7 @@ function calsys_save_settings() {
             'email_event_reminders' => isset($posted_notifications['email_event_reminders']) ? 1 : 0,
         ),
         'privacy' => array(
+            'hide_guest_room_bookings' => isset($posted_privacy['hide_guest_room_bookings']) ? 1 : 0,
             'show_room_names' => isset($posted_privacy['show_room_names']) ? 1 : 0,
             'show_room_status' => isset($posted_privacy['show_room_status']) ? 1 : 0,
             'retention_days' => (int) $raw_retention_days,

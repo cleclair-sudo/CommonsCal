@@ -10,12 +10,15 @@ function current_time($format) { return $format === 'Y-m' ? '2026-11' : '2026-11
 function esc_attr($value) { return htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); }
 function __($value) { return $value; }
 function current_user_can($capability) { return $GLOBALS['staff']; }
+function is_user_logged_in() { return $GLOBALS['logged_in']; }
 function calsys_table($name) { return 'wp_calsys_' . $name; }
-function calsys_get_settings() { return array('privacy' => array('show_room_names' => $GLOBALS['show_room_names'], 'show_room_status' => true)); }
+function calsys_get_settings() { return array('privacy' => array('hide_guest_room_bookings' => $GLOBALS['hide_guest_room_bookings'], 'show_room_names' => $GLOBALS['show_room_names'], 'show_room_status' => true)); }
 class CalendarTestDatabase {
     public $last_error = '';
+    public $query_count = 0;
     public function prepare($sql, ...$args) { return $sql; }
     public function get_results($sql) {
+        $this->query_count++;
         return array((object) array(
             'id' => 1, 'room_id' => 2, 'room_name' => 'Blue room', 'room_color' => '#123456',
             'booking_date' => '2026-11-30', 'starts_at' => '10:00:00', 'ends_at' => '11:00:00',
@@ -52,6 +55,8 @@ expect(strpos($fields, 'name="page_id" value="6"') !== false && strpos($fields, 
 
 $wpdb = new CalendarTestDatabase();
 $staff = false;
+$logged_in = false;
+$hide_guest_room_bookings = false;
 $show_room_names = true;
 $entries = calsys_room_calendar_entries($month, $month->modify('+1 month'));
 expect($entries[0]->room_color === '#123456' && $entries[0]->title === 'Blue room', 'Visible rooms must retain their individual color');
@@ -61,4 +66,17 @@ expect($entries[0]->room_color === '' && $entries[0]->title === 'Reserved room',
 $staff = true;
 $entries = calsys_room_calendar_entries($month, $month->modify('+1 month'));
 expect($entries[0]->room_color === '#123456' && $entries[0]->title === 'Blue room', 'Staff must see room colors even when public room names are hidden');
+
+$staff = false;
+$show_room_names = true;
+$hide_guest_room_bookings = true;
+$query_count = $wpdb->query_count;
+expect(calsys_room_calendar_entries($month, $month->modify('+1 month')) === array(), 'Logged-out visitors must not receive room bookings when hidden');
+expect($wpdb->query_count === $query_count, 'Hidden room bookings must not be queried for logged-out visitors');
+$logged_in = true;
+$entries = calsys_room_calendar_entries($month, $month->modify('+1 month'));
+expect(count($entries) === 1 && $entries[0]->title === 'Blue room', 'Signed-in non-staff must still see public bookings');
+$staff = true;
+$entries = calsys_room_calendar_entries($month, $month->modify('+1 month'));
+expect(count($entries) === 1 && $entries[0]->title === 'Blue room', 'Staff must still see room bookings when hidden from guests');
 echo "Calendar views passed.\n";

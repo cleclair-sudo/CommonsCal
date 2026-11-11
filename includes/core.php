@@ -534,6 +534,7 @@ function calsys_default_settings() {
             'email_event_reminders' => 0,
         ),
         'privacy' => array(
+            'hide_guest_room_bookings' => 0,
             'show_room_names' => 1,
             'show_room_status' => 1,
             'retention_days' => 0,
@@ -708,6 +709,7 @@ function calsys_get_settings() {
 
     $privacy = is_array($saved['privacy'] ?? null) ? $saved['privacy'] : array();
     $settings['privacy'] = array(
+        'hide_guest_room_bookings' => isset($privacy['hide_guest_room_bookings']) ? (int) (bool) $privacy['hide_guest_room_bookings'] : $defaults['privacy']['hide_guest_room_bookings'],
         'show_room_names' => isset($privacy['show_room_names']) ? (int) (bool) $privacy['show_room_names'] : $defaults['privacy']['show_room_names'],
         'show_room_status' => isset($privacy['show_room_status']) ? (int) (bool) $privacy['show_room_status'] : $defaults['privacy']['show_room_status'],
         'retention_days' => min(3650, absint($privacy['retention_days'] ?? $defaults['privacy']['retention_days'])),

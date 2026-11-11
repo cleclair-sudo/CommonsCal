@@ -459,9 +459,17 @@ function calsys_event_category_sql($column = 'e.category') {
     return $wpdb->prepare(" AND $column IN ($placeholders)", $categories);
 }
 
+/** Whether room-booking listings are hidden for the current visitor. */
+function calsys_hide_guest_room_bookings() {
+    return !is_user_logged_in() && !empty(calsys_get_settings()['privacy']['hide_guest_room_bookings']);
+}
+
 /** Loads visible room bookings for a calendar range without exposing patron data publicly. */
 function calsys_room_calendar_entries($grid_start, $grid_end) {
     global $wpdb;
+    if (calsys_hide_guest_room_bookings()) {
+        return array();
+    }
     $staff_access = current_user_can('manage_calendar_system');
     $staff_columns = $staff_access ? ', b.requester_name, b.requester_email' : '';
     $bookings = $wpdb->get_results($wpdb->prepare(
@@ -572,7 +580,7 @@ function calsys_event_calendar_view($dialog_events = array(), $calendar_mode = '
     $output = '<div class="calsys-calendar-widget calsys-calendar-widget-' . esc_attr($calendar_mode) . '">';
     $output .= calsys_public_notice();
     $output .= calsys_staff_access_link($calendar_mode === 'rooms' ? 'room' : ($calendar_mode === 'events' ? 'events' : 'combined'));
-    $calendar_title = $calendar_mode === 'events'
+    $calendar_title = $calendar_mode === 'events' || calsys_hide_guest_room_bookings()
         ? __('Events', 'community-calendar-study-rooms')
         : ($calendar_mode === 'rooms'
             ? __('Room bookings and upcoming events', 'community-calendar-study-rooms')
