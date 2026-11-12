@@ -425,7 +425,11 @@ function calsys_admin_events_page() {
                 <tr>
                     <td><?php echo esc_html($event->title); ?></td>
                     <td><?php echo esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at)); ?></td>
-                    <td><?php echo esc_html($categories[$event->category] ?? $event->category); ?></td>
+                    <td><?php 
+                        $category_data = $categories[$event->category] ?? $event->category;
+                        $label = is_array($category_data) ? ($category_data['label'] ?? '') : $category_data;
+                        echo esc_html($label ?: $event->category); 
+                    ?></td>
                     <td><?php echo esc_html($event->staff_initials ?? ''); ?></td>
                     <td>
                         <a href="<?php echo esc_url(add_query_arg(array('page' => 'calsys-events', 'view_registrations' => $event->id), admin_url('admin.php'))); ?>">
@@ -653,7 +657,13 @@ function calsys_admin_rooms_page() {
     if (is_array($room_calendar_events)) {
         $categories = calsys_event_categories();
         foreach ($room_calendar_events as $event) {
-            $event->category_label = $categories[$event->category] ?? '';
+            $event->category_label = '';
+            $category_data = $categories[$event->category] ?? null;
+            if (is_array($category_data)) {
+                $event->category_label = $category_data['label'] ?? '';
+            } elseif (is_string($category_data)) {
+                $event->category_label = $category_data;
+            }
             $event->calendar_detail = calsys_show_public_registration_counts($event)
                 ? sprintf(
                     _n('%d registered', '%d registered', (int) $event->registration_count, 'community-calendar-study-rooms'),

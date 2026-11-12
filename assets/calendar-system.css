@@ -177,8 +177,8 @@
     background: #f7f9fb;
     border: 1px solid var(--calsys-border, #d7dce2);
     border-radius: 0.75rem;
-    margin: 0 0 0.9rem;
-    padding: 1rem;
+    margin: 0 0 0.6rem;
+    padding: 0.6rem 0.9rem;
 }
 
 .calsys-category-filter-options {
@@ -189,21 +189,22 @@
 }
 
 .calsys-category-filter-options legend {
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 700;
     padding: 0;
 }
 
 .calsys-category-filter-help {
     color: var(--calsys-muted, #596675);
-    font-size: 0.9rem;
-    margin: 0.25rem 0 0.75rem;
+    font-size: 0.85rem;
+    margin: 0.15rem 0 0.4rem;
+    display: none;
 }
 
 .calsys-category-checkboxes {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: 0.4rem;
 }
 
 .calsys-category-choice {
@@ -213,9 +214,10 @@
     border-radius: 999px;
     cursor: pointer;
     display: inline-flex;
-    gap: 0.45rem;
-    line-height: 1.3;
-    padding: 0.45rem 0.8rem;
+    gap: 0.4rem;
+    line-height: 1.2;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.9rem;
     transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
@@ -240,15 +242,15 @@
     align-items: center;
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-top: 0.85rem;
+    gap: 0.5rem;
+    margin-top: 0.4rem;
 }
 
 .calsys-category-filter > label {
     display: inline-flex;
     flex-direction: column;
-    gap: 0.3rem;
-    margin: 0.75rem 1rem 0 0;
+    gap: 0.2rem;
+    margin: 0.4rem 0.75rem 0 0;
 }
 
 .calsys-series-events,
@@ -268,7 +270,8 @@
     cursor: pointer;
     font: inherit;
     font-weight: 650;
-    padding: 0.5rem 0.85rem;
+    font-size: 0.9rem;
+    padding: 0.35rem 0.7rem;
 }
 
 .calsys-category-filter-actions a {
@@ -1054,6 +1057,36 @@
 
     .calsys-public-calendar .calsys-calendar-navigation span {
         min-width: 0;
+        text-align: center;
+    }
+
+    .calsys-category-filter {
+        padding: 0.5rem 0.7rem;
+        margin: 0 0 0.5rem;
+    }
+
+    .calsys-category-filter-options legend {
+        font-size: 0.85rem;
+    }
+
+    .calsys-category-checkboxes {
+        gap: 0.3rem;
+    }
+
+    .calsys-category-choice {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.85rem;
+        gap: 0.3rem;
+    }
+
+    .calsys-category-filter-actions {
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .calsys-category-filter-actions button,
+    .calsys-category-filter-actions a {
+        width: 100%;
         text-align: center;
     }
 

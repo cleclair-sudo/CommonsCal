@@ -446,7 +446,7 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
                                         $time_label = __('Continues', 'community-calendar-study-rooms');
                                     }
                                     $detail = $event->calendar_detail ?? '';
-                                    $entry_color = calsys_calendar_entry_color($event->calendar_type ?? 'event', $event->entry_type ?? '', $event->room_color ?? '');
+                                    $entry_color = calsys_calendar_entry_color($event->calendar_type ?? 'event', $event->entry_type ?? '', $event->room_color ?? '', $event->category_color ?? '');
                                     ?>
                                     <li class="calsys-calendar-entry is-<?php echo esc_attr($event_type); ?>" style="<?php echo esc_attr('--calsys-entry-color: ' . $entry_color); ?>">
                                         <span class="calsys-calendar-entry-time"><?php echo esc_html($time_label); ?></span>
@@ -667,6 +667,7 @@ function calsys_event_calendar_view($dialog_events = array(), $calendar_mode = '
             "SELECT e.id, e.title, e.description, e.starts_at, e.ends_at, e.capacity, e.status, e.category, e.registration_fields,
             e.registration_enabled, e.registration_recipients, e.image_id, e.show_registration_counts, e.recurrence_group, e.staff_initials, e.series_id, e.register_all_recurrences,
             (SELECT b.room_id FROM " . calsys_table('bookings') . " b WHERE b.source_type = 'event' AND b.source_id = e.id ORDER BY b.id ASC LIMIT 1) AS room_id,
+            (SELECT r.color FROM " . calsys_table('rooms') . " r INNER JOIN " . calsys_table('bookings') . " b ON r.id = b.room_id WHERE b.source_type = 'event' AND b.source_id = e.id ORDER BY b.id ASC LIMIT 1) AS room_color,
             0 AS all_day, 'event' AS calendar_type,
             (SELECT COUNT(*) FROM " . calsys_table('registrations') . " r WHERE r.event_id = e.id) AS registration_count
             FROM " . calsys_table('events') . " e
@@ -694,9 +695,19 @@ function calsys_event_calendar_view($dialog_events = array(), $calendar_mode = '
         }
     }
     $calendar_entries = array_merge($events, $room_entries);
+    $staff_access = current_user_can('manage_calendar_system');
     foreach ($events as $event) {
         $categories = calsys_event_categories();
-        $event->category_label = $categories[$event->category] ?? '';
+        $category_data = $categories[$event->category] ?? null;
+        if (is_array($category_data)) {
+            $event->category_label = $category_data['label'] ?? '';
+            // Only use category color for public view; staff view uses room color
+            $event->category_color = !$staff_access ? ($category_data['color'] ?? '') : '';
+        } else {
+            // Handle legacy string format
+            $event->category_label = is_string($category_data) ? $category_data : '';
+            $event->category_color = '';
+        }
         $event->calendar_detail = calsys_show_public_registration_counts($event)
             ? sprintf(
                 _n('%d registered', '%d registered', (int) $event->registration_count, 'community-calendar-study-rooms'),

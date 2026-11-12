@@ -514,9 +514,9 @@ function calsys_default_settings() {
             'other' => array('label' => __('Other', 'community-calendar-study-rooms'), 'color' => '#59458d'),
         ),
         'event_categories' => array(
-            'teen' => __('Teen', 'community-calendar-study-rooms'),
-            'adult' => __('Adult', 'community-calendar-study-rooms'),
-            'children' => __('Children', 'community-calendar-study-rooms'),
+            'teen' => array('label' => __('Teen', 'community-calendar-study-rooms'), 'color' => '#6366f1'),
+            'adult' => array('label' => __('Adult', 'community-calendar-study-rooms'), 'color' => '#1d5f8a'),
+            'children' => array('label' => __('Children', 'community-calendar-study-rooms'), 'color' => '#f43f5e'),
         ),
         'booking_rules' => array(
             'max_advance_days' => 0,
@@ -834,7 +834,7 @@ function calsys_send_email($recipient, $subject, $message) {
 }
 
 /** Returns the configured display color for an event, room, or staff entry. */
-function calsys_calendar_entry_color($calendar_type, $entry_type = '', $room_color = '') {
+function calsys_calendar_entry_color($calendar_type, $entry_type = '', $room_color = '', $category_color = '') {
     $settings = calsys_get_settings();
     if ($calendar_type === 'staff') {
         if (isset($settings['staff_types'][$entry_type]['color'])) {
@@ -845,6 +845,15 @@ function calsys_calendar_entry_color($calendar_type, $entry_type = '', $room_col
     if ($calendar_type === 'room') {
         return is_string($room_color) && sanitize_hex_color($room_color)
             ? sanitize_hex_color($room_color) : $settings['calendar_colors']['rooms'];
+    }
+    // For events: use category color if available (public view), otherwise use room color if available (staff view), then default to event color
+    if ($calendar_type === 'event') {
+        if ($category_color && is_string($category_color) && sanitize_hex_color($category_color)) {
+            return sanitize_hex_color($category_color);
+        }
+        if ($room_color && is_string($room_color) && sanitize_hex_color($room_color)) {
+            return sanitize_hex_color($room_color);
+        }
     }
     return $settings['calendar_colors']['events'];
 }

@@ -277,13 +277,19 @@ function calsys_admin_settings_page() {
             <h2><?php esc_html_e('Event categories', 'community-calendar-study-rooms'); ?></h2>
             <p><?php esc_html_e('Choose the categories available for events. Categories already used by saved events cannot be removed.', 'community-calendar-study-rooms'); ?></p>
             <table class="widefat striped calsys-categories-table">
-                <thead><tr><th><?php esc_html_e('Category name', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Identifier', 'community-calendar-study-rooms'); ?></th><th></th></tr></thead>
+                <thead><tr><th><?php esc_html_e('Category name', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Color', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Identifier', 'community-calendar-study-rooms'); ?></th><th></th></tr></thead>
                 <tbody id="calsys-event-categories">
-                <?php $category_index = 0; foreach ($settings['event_categories'] as $key => $label) : ?>
+                <?php $category_index = 0; foreach ($settings['event_categories'] as $key => $category_data) : 
+                    $label = is_array($category_data) ? ($category_data['label'] ?? '') : $category_data;
+                    $color = is_array($category_data) ? ($category_data['color'] ?? '#1d5f8a') : '#1d5f8a';
+                    ?>
                     <tr class="calsys-category-row">
                         <td>
                             <input type="hidden" name="event_categories[<?php echo esc_attr($category_index); ?>][key]" value="<?php echo esc_attr($key); ?>">
                             <input class="regular-text" name="event_categories[<?php echo esc_attr($category_index); ?>][label]" type="text" maxlength="60" required value="<?php echo esc_attr($label); ?>" aria-label="<?php esc_attr_e('Event category name', 'community-calendar-study-rooms'); ?>">
+                        </td>
+                        <td>
+                            <input class="calsys-color-picker" name="event_categories[<?php echo esc_attr($category_index); ?>][color]" type="text" data-hex="true" value="<?php echo esc_attr($color); ?>" aria-label="<?php esc_attr_e('Category color', 'community-calendar-study-rooms'); ?>">
                         </td>
                         <td><code><?php echo esc_html($key); ?></code></td>
                         <td><button class="button calsys-remove-category" type="button"><?php esc_html_e('Remove', 'community-calendar-study-rooms'); ?></button></td>
@@ -457,6 +463,9 @@ function calsys_admin_settings_page() {
                     <input type="hidden" name="event_categories[<%= data.index %>][key]" value="">
                     <input class="regular-text" name="event_categories[<%= data.index %>][label]" type="text" maxlength="60" required value="" aria-label="<?php esc_attr_e('Event category name', 'community-calendar-study-rooms'); ?>">
                 </td>
+                <td>
+                    <input class="calsys-color-picker" name="event_categories[<%= data.index %>][color]" type="text" value="#1d5f8a" data-default-color="#1d5f8a" aria-label="<?php esc_attr_e('Category color', 'community-calendar-study-rooms'); ?>">
+                </td>
                 <td><?php esc_html_e('Created when saved', 'community-calendar-study-rooms'); ?></td>
                 <td><button class="button calsys-remove-category" type="button"><?php esc_html_e('Remove', 'community-calendar-study-rooms'); ?></button></td>
             </tr>
@@ -540,6 +549,7 @@ function calsys_save_settings() {
             calsys_admin_redirect('calsys-settings', 'settings_invalid');
         }
         $label = sanitize_text_field($row['label']);
+        $color = isset($row['color']) ? sanitize_hex_color($row['color']) : '#1d5f8a';
         $key = sanitize_key($row['key']);
         if ($key === '') {
             $key = substr(sanitize_key(str_replace('-', '_', sanitize_title($label))), 0, 40);
@@ -554,7 +564,7 @@ function calsys_save_settings() {
             $key = substr($base_key, 0, 40 - strlen($suffix_text)) . $suffix_text;
             $suffix++;
         }
-        $categories[$key] = $label;
+        $categories[$key] = array('label' => $label, 'color' => $color);
     }
     if (!$categories) {
         calsys_admin_redirect('calsys-settings', 'settings_invalid');
@@ -784,7 +794,12 @@ function calsys_save_settings() {
             calsys_admin_redirect('calsys-settings', 'settings_invalid');
         }
         if ((int) $usage_result > 0) {
-            $categories[$key] = $label;
+            // Handle both old string format and new array format
+            if (is_array($label)) {
+                $categories[$key] = $label;
+            } else {
+                $categories[$key] = array('label' => $label, 'color' => '#1d5f8a');
+            }
         }
     }
     $settings['event_categories'] = $categories;

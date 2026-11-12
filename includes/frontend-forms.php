@@ -357,7 +357,9 @@ function calsys_front_room_form() {
                         <div class="calsys-form-grid">
                             <p class="calsys-form-wide"><label><?php esc_html_e('Event title', 'community-calendar-study-rooms'); ?><input name="title" type="text" maxlength="200" required></label></p>
                             <p><label><?php esc_html_e('Your initials', 'community-calendar-study-rooms'); ?><input name="staff_initials" type="text" maxlength="10" required></label></p>
-                            <p><label><?php esc_html_e('Category', 'community-calendar-study-rooms'); ?><select name="category"><?php foreach (calsys_event_categories() as $key => $label) : ?><option value="<?php echo esc_attr($key); ?>" <?php selected($key, 'adult'); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select></label></p>
+                            <p><label><?php esc_html_e('Category', 'community-calendar-study-rooms'); ?><select name="category"><?php foreach (calsys_event_categories() as $key => $category_data) : 
+                                $label = is_array($category_data) ? ($category_data['label'] ?? '') : $category_data;
+                                ?><option value="<?php echo esc_attr($key); ?>" <?php selected($key, 'adult'); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select></label></p>
                             <p class="calsys-form-wide"><label><?php esc_html_e('Description', 'community-calendar-study-rooms'); ?><textarea name="description" rows="3"></textarea></label></p>
                             <div class="calsys-form-wide"><?php echo calsys_event_image_field(); ?></div>
                             <input name="status" type="hidden" value="published">
