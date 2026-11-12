@@ -315,7 +315,9 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
                     <legend><?php esc_html_e('Filter by category', 'community-calendar-study-rooms'); ?></legend>
                     <p class="calsys-category-filter-help"><?php esc_html_e('Choose one or more categories. Leave them all unchecked to show every event.', 'community-calendar-study-rooms'); ?></p>
                     <div class="calsys-category-checkboxes">
-                        <?php foreach ($categories as $key => $label) : ?>
+                        <?php foreach ($categories as $key => $category_data) : 
+                            $label = is_array($category_data) ? ($category_data['label'] ?? '') : $category_data;
+                            ?>
                             <label class="calsys-category-choice">
                                 <input type="checkbox" name="calsys_category[]" value="<?php echo esc_attr($key); ?>" <?php checked(in_array($key, $selected_categories, true)); ?>>
                                 <span><?php echo esc_html($label); ?></span>
@@ -1054,7 +1056,11 @@ function calsys_events_shortcode() {
             echo '<p class="calsys-event-date">' . esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at)) . ' - ' . esc_html(mysql2date(get_option('time_format'), $event->ends_at)) . '</p>';
             $categories = calsys_event_categories();
             if (calsys_show_public_category_labels() && isset($categories[$event->category])) {
-                echo '<p class="calsys-event-category">' . esc_html($categories[$event->category]) . '</p>';
+                $category_data = $categories[$event->category];
+                $label = is_array($category_data) ? ($category_data['label'] ?? '') : $category_data;
+                if ($label) {
+                    echo '<p class="calsys-event-category">' . esc_html($label) . '</p>';
+                }
             }
             if ($event->description !== '') {
                 echo '<div class="calsys-event-description">' . wpautop(wp_kses_post($event->description)) . '</div>';
