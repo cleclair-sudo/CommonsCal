@@ -495,15 +495,7 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
                                                 data-end="<?php echo esc_attr(str_replace(' ', 'T', substr($event->ends_at, 0, 16))); ?>"
                                                 data-all-day="<?php echo esc_attr(!empty($event->all_day) ? '1' : '0'); ?>"><?php esc_html_e('Edit', 'community-calendar-study-rooms'); ?></button>
                                         <?php elseif (current_user_can('manage_calendar_system') && ($event->calendar_type ?? '') === 'room' && ($event->status ?? '') === 'pending') : ?>
-                                                <form class="calsys-entry-decision" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                                                    <?php wp_nonce_field('calsys_front_booking_decision_' . $event->id); ?>
-                                                    <input type="hidden" name="action" value="calsys_booking_decision">
-                                                    <input type="hidden" name="calsys_frontend" value="1">
-                                                    <input type="hidden" name="booking_id" value="<?php echo esc_attr($event->id); ?>">
-                                                    <label><?php esc_html_e('Comment to requester (optional)', 'community-calendar-study-rooms'); ?><textarea name="decision_comment" rows="2" maxlength="4000"></textarea></label>
-                                                    <button class="calsys-entry-action" type="submit" name="decision" value="approve"><?php esc_html_e('Approve', 'community-calendar-study-rooms'); ?></button>
-                                                    <button class="calsys-entry-action" type="submit" name="decision" value="deny"><?php esc_html_e('Deny', 'community-calendar-study-rooms'); ?></button>
-                                                </form>
+                                            <a class="calsys-entry-action" href="<?php echo esc_url(admin_url('admin.php?page=calsys-room-approvals') . '#calsys-room-request-' . absint($event->id)); ?>"><?php esc_html_e('Approve / Deny', 'community-calendar-study-rooms'); ?></a>
                                             <button class="calsys-entry-action" type="button" data-calsys-edit-room
                                                 data-booking-id="<?php echo esc_attr($event->id); ?>"
                                                 data-equipment="<?php echo esc_attr(wp_json_encode($equipment_by_entry['room:' . $event->id])); ?>"

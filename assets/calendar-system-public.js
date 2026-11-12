@@ -44,7 +44,7 @@
             var table = calendar.querySelector('.calsys-calendar-table').cloneNode(true);
             table.classList.add(calendar.classList.contains('calsys-view-week') ? 'calsys-print-week' :
                 (calendar.classList.contains('calsys-view-day') ? 'calsys-print-day' : 'calsys-print-month'));
-            table.querySelectorAll('.calsys-day-action, .calsys-entry-action, .calsys-entry-decision').forEach(function (control) {
+            table.querySelectorAll('.calsys-day-action, .calsys-entry-action').forEach(function (control) {
                 control.remove();
             });
             table.querySelectorAll('button.calsys-calendar-entry-title').forEach(function (control) {
@@ -285,7 +285,12 @@
         var seriesChoice = form.querySelector('[name="series_id"]');
         var seriesName = form.querySelector('[name="series_name"]');
         if (seriesChoice && seriesName) {
-            seriesName.required = !seriesChoice.disabled && seriesChoice.value === 'new';
+            var creatingSeries = seriesChoice.value === 'new';
+            var seriesNameField = form.querySelector('[data-calsys-series-name]');
+            if (seriesNameField) {
+                seriesNameField.hidden = !creatingSeries;
+            }
+            seriesName.required = !seriesChoice.disabled && creatingSeries;
         }
 
         var roomToggle = form.querySelector('[data-calsys-toggle-room]');

@@ -8,10 +8,13 @@ class BookingRedirect extends Exception {
 class BookingDatabase {
     public $insert_id = 12;
     public $inserted = array();
+    public $updated = null;
     public function query($sql) { return 1; }
     public function prepare($sql, ...$args) { return $sql; }
     public function get_var($sql) { return 1; }
     public function insert($table, $data) { $this->inserted[] = $data; return 1; }
+    public function get_row($sql) { return (object) array('id' => 17, 'status' => 'pending'); }
+    public function update($table, $data, $where) { $this->updated = $data; return 1; }
 }
 function add_action() {}
 function calsys_require_staff() { if (!$GLOBALS['staff_authorized']) { throw new RuntimeException('Not authorized'); } }
@@ -49,6 +52,11 @@ try { calsys_save_booking(false); expect(false, 'Expected public conflict redire
 }
 try { calsys_save_booking(true); expect(false, 'Expected staff success redirect'); } catch (BookingRedirect $result) {
     expect($result->notice === 'booking_saved' && count($wpdb->inserted) === 1, 'Acknowledged staff double booking was not saved');
+}
+$conflict = false;
+$_POST = array('booking_id' => '17', 'room_id' => '1');
+try { calsys_save_booking(true, true); expect(false, 'Expected edit success redirect'); } catch (BookingRedirect $result) {
+    expect($result->notice === 'room_booking_saved' && !array_key_exists('source_type', $wpdb->updated), 'Editing a public pending request must preserve its source for decision emails');
 }
 $staff_authorized = false;
 try { calsys_save_booking(true); expect(false, 'Unauthorized staff booking'); } catch (RuntimeException $error) {}

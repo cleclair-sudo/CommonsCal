@@ -436,21 +436,6 @@
     padding: 0.15rem 0.25rem;
 }
 
-.calsys-entry-decision {
-    display: block;
-}
-
-.calsys-entry-decision textarea {
-    box-sizing: border-box;
-    display: block;
-    max-width: 100%;
-}
-
-.calsys-entry-decision .calsys-entry-action {
-    font-size: 0.7rem;
-    padding: 0.15rem 0.3rem;
-}
-
 .calsys-calendar-entry.is-room {
     border-left-color: var(--calsys-entry-color, var(--calsys-room));
 }
@@ -792,6 +777,60 @@
     display: grid;
     gap: 0.9rem 1rem;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.calsys-event-dialog,
+.calsys-room-dialog {
+    border-radius: 0.35rem;
+    max-width: min(48rem, calc(100vw - 2rem));
+}
+
+.calsys-event-dialog .calsys-action-card,
+.calsys-room-dialog .calsys-action-card {
+    border-radius: 0;
+}
+
+.calsys-event-dialog .calsys-action-card-heading,
+.calsys-room-dialog .calsys-action-card-heading {
+    background: #f7f9fb;
+}
+
+.calsys-event-dialog .calsys-dialog-close,
+.calsys-room-dialog .calsys-dialog-close {
+    border-radius: 0.25rem;
+}
+
+.calsys-form-section {
+    border-top: 1px solid var(--calsys-border, #d7dce2);
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+}
+
+.calsys-action-form > .calsys-form-section:first-of-type {
+    border-top: 0;
+    margin-top: 0;
+    padding-top: 0;
+}
+
+.calsys-form-section h3 {
+    color: var(--calsys-ink, #1f2933);
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0 0 1rem;
+}
+
+.calsys-form-section fieldset {
+    border-radius: 0.2rem;
+    min-width: 0;
+}
+
+.calsys-event-dialog .calsys-form input,
+.calsys-event-dialog .calsys-form select,
+.calsys-event-dialog .calsys-form textarea,
+.calsys-room-dialog .calsys-form input,
+.calsys-room-dialog .calsys-form select,
+.calsys-room-dialog .calsys-form textarea {
+    border-radius: 0.2rem;
 }
 
 .calsys-form-grid p {

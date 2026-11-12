@@ -94,6 +94,7 @@ expect(strpos($html, '&lt;Room&gt;') !== false && strpos($html, 'Group study') !
 expect(strpos($html, 'Projector (1)') !== false, 'Requested equipment is missing');
 expect(strpos($html, 'calsys_booking_decision_17') !== false && strpos($html, 'value="approve"') !== false && strpos($html, 'value="deny"') !== false, 'Approval actions are missing');
 expect(strpos($html, 'name="decision_comment"') !== false, 'Decision comment field is missing');
+expect(strpos($html, 'id="calsys-room-request-17"') !== false, 'Approval requests must be linkable from the calendar');
 expect(strpos($wpdb->queries[0], "b.status = 'pending'") !== false, 'Approvals must contain only pending requests');
 $wpdb->result = array();
 expect(strpos(render('calsys_admin_room_approvals_page'), 'No room requests are waiting') !== false, 'Missing empty approvals state');
@@ -169,6 +170,11 @@ try { calsys_booking_decision(); expect(false, 'Expected redirect'); } catch (Te
     expect($redirect->notice === 'room_status_email_failed', 'Email failures must be reported after the decision is saved');
 }
 $email_succeeds = true;
+$wpdb->updated = null;
+$_POST = array('booking_id' => '17', 'decision' => 'approve', 'calsys_frontend' => '1');
+try { calsys_booking_decision(); expect(false, 'Expected frontend decision rejection'); } catch (TestRedirect $redirect) {
+    expect($redirect->page === 'calsys-room-approvals' && $redirect->notice === 'invalid' && $wpdb->updated === null, 'Frontend decisions must not change a request');
+}
 $conflict = true;
 $_POST = array('booking_id' => '17', 'decision' => 'approve', 'calsys_return_page' => 'calsys-room-approvals');
 try { calsys_booking_decision(); expect(false, 'Expected conflict'); } catch (TestRedirect $redirect) {

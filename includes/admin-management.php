@@ -207,7 +207,7 @@ function calsys_admin_room_approvals_page() {
         <?php else : ?>
             <ul class="calsys-review-list">
                 <?php foreach ($requests as $request) : ?>
-                    <li class="calsys-admin-card calsys-review-card">
+                    <li id="calsys-room-request-<?php echo esc_attr($request->id); ?>" class="calsys-admin-card calsys-review-card">
                         <div class="calsys-review-heading">
                             <div>
                                 <span class="calsys-admin-status is-pending"><?php esc_html_e('Pending', 'community-calendar-study-rooms'); ?></span>
@@ -752,14 +752,7 @@ function calsys_admin_rooms_page() {
                     <td><?php echo esc_html(ucfirst($booking->status)); ?></td>
                     <td>
                     <?php if ($booking->status === 'pending') : ?>
-                        <form class="calsys-inline-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                            <?php wp_nonce_field('calsys_booking_decision_' . $booking->id); ?>
-                            <input type="hidden" name="action" value="calsys_booking_decision">
-                            <input type="hidden" name="booking_id" value="<?php echo esc_attr($booking->id); ?>">
-                            <label><?php esc_html_e('Comment to requester (optional)', 'community-calendar-study-rooms'); ?><br><textarea name="decision_comment" rows="2" maxlength="4000"></textarea></label><br>
-                            <button class="button button-secondary button-small" type="submit" name="decision" value="approve"><?php esc_html_e('Approve', 'community-calendar-study-rooms'); ?></button>
-                            <button class="button button-secondary button-small" type="submit" name="decision" value="deny"><?php esc_html_e('Deny', 'community-calendar-study-rooms'); ?></button>
-                        </form>
+                        <a class="button button-secondary button-small" href="<?php echo esc_url(admin_url('admin.php?page=calsys-room-approvals') . '#calsys-room-request-' . absint($booking->id)); ?>"><?php esc_html_e('Approve / Deny', 'community-calendar-study-rooms'); ?></a>
                     <?php endif; ?>
                     </td>
                 </tr>

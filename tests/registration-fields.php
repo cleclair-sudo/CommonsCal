@@ -65,4 +65,12 @@ expect(calsys_show_public_registration_counts($hidden_event), 'Staff must still 
 expect(strpos(calsys_event_count_visibility_field(false), 'checked') === false, 'Editing a hidden event must start unchecked');
 expect(strpos(calsys_event_count_visibility_field(true), 'checked') !== false, 'New events must default to showing counts');
 
+$wpdb = new class {
+    public $prefix = 'wp_';
+    public function get_results($sql) { return array(); }
+};
+$series_field = calsys_event_series_field();
+expect((bool) preg_match('/<p\b[^>]*data-calsys-series-name[^>]*>/', $series_field, $series_name_field), 'The series name needs a disclosure target');
+expect(!preg_match('/\shidden(?:\s|>)/', $series_name_field[0]), 'The series name must remain available without JavaScript');
+
 echo "Registration field rendering passed.\n";

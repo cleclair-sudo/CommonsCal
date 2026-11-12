@@ -13,6 +13,10 @@ function esc_html_e($value) { echo esc_html($value); }
 function esc_attr_e($value) { echo esc_attr($value); }
 function esc_url($value) { return esc_attr($value); }
 function __($value) { return $value; }
+function absint($value) { return abs((int) $value); }
+function admin_url($path) { return '/wp-admin/' . $path; }
+function wp_json_encode($value) { return json_encode($value); }
+function calsys_equipment_for_source() { return array(); }
 function current_user_can($capability) { return $GLOBALS['staff']; }
 function is_user_logged_in() { return $GLOBALS['logged_in']; }
 function calsys_table($name) { return 'wp_calsys_' . $name; }
@@ -144,7 +148,16 @@ foreach (array('rooms', 'combined') as $calendar_type) {
 $staff = true;
 $html = calsys_render_calendar('Rooms', array(), $month, 'combined', 'day', $selected, true);
 expect(strpos($html, 'data-calsys-add-room data-date="2026-11-11">Add</button>') !== false, 'Staff must still be able to book on closed days');
+$pending = (object) array(
+    'id' => 17, 'title' => 'Room', 'calendar_type' => 'room', 'status' => 'pending',
+    'starts_at' => '2026-11-11 10:00:00', 'ends_at' => '2026-11-11 11:00:00', 'all_day' => 0,
+);
+$html = calsys_render_calendar('Rooms', array($pending), $month, 'combined', 'day', $selected, true);
+expect(strpos($html, '/wp-admin/admin.php?page=calsys-room-approvals#calsys-room-request-17') !== false, 'Staff calendar must link to the matching backend request');
+expect(strpos($html, 'Approve / Deny') !== false && strpos($html, 'decision_comment') === false && strpos($html, 'calsys_booking_decision') === false, 'Calendar must not offer a decision form or comment field');
 $staff = false;
+$html = calsys_render_calendar('Rooms', array($pending), $month, 'combined', 'day', $selected, true);
+expect(strpos($html, 'calsys-room-approvals') === false, 'Approval links must be visible only to staff');
 $active_rooms = false;
 $html = calsys_render_calendar('Rooms', array(), $month, 'rooms', 'day', new DateTimeImmutable('2026-11-12', wp_timezone()), true);
 expect(strpos($html, 'data-calsys-add-room') === false, 'No room action should be shown when there are no active rooms');

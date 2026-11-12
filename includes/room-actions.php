@@ -123,7 +123,7 @@ function calsys_save_booking($staff_booking = false, $frontend = false) {
         'starts_at' => $booking['start'],
         'ends_at' => $booking['end'],
     );
-    if ($staff_booking) {
+    if ($staff_booking && !$booking_id) {
         $booking_data['source_type'] = 'private';
         $booking_data['source_id'] = 0;
     }
@@ -292,12 +292,15 @@ function calsys_notify_room_status($booking, $status, $comment = '') {
 
 /** Approves or denies a pending room request after permission and conflict checks. */
 function calsys_booking_decision() {
-    $frontend = !empty($_POST['calsys_frontend']);
+    $frontend = false;
     $admin_page = isset($_POST['calsys_return_page']) && $_POST['calsys_return_page'] === 'calsys-room-approvals'
         ? 'calsys-room-approvals' : 'calsys-rooms';
     calsys_require_staff();
+    if (!empty($_POST['calsys_frontend'])) {
+        calsys_action_redirect(false, 'calsys-room-approvals', 'invalid');
+    }
     $booking_id = absint($_POST['booking_id'] ?? 0);
-    check_admin_referer(($frontend ? 'calsys_front_booking_decision_' : 'calsys_booking_decision_') . $booking_id);
+    check_admin_referer('calsys_booking_decision_' . $booking_id);
     $decision = sanitize_key(wp_unslash($_POST['decision'] ?? ''));
     $raw_comment = $_POST['decision_comment'] ?? '';
     if (!$booking_id || !in_array($decision, array('approve', 'deny'), true) || !is_string($raw_comment)) {
