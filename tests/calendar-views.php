@@ -24,6 +24,11 @@ function add_query_arg($args, $url) { return $url . '?' . http_build_query($args
 function wp_parse_url($url, $component) { return parse_url($url, $component); }
 function calsys_event_categories() { return array(); }
 function checked($value) { if ($value) { echo 'checked'; } }
+function selected($value, $expected) { if ($value === $expected) { echo 'selected'; } }
+function sanitize_html_class($value) { return preg_replace('/[^a-zA-Z0-9_-]/', '', $value); }
+function calsys_calendar_entry_color() { return '#123456'; }
+function calsys_show_public_category_labels() { return true; }
+function wp_strip_all_tags($value, $remove_breaks = false) { return strip_tags($value); }
 class CalendarTestDatabase {
     public $last_error = '';
     public $query_count = 0;
@@ -31,6 +36,7 @@ class CalendarTestDatabase {
     public function get_var($sql) { return $GLOBALS['active_rooms'] ? 1 : null; }
     public function get_results($sql) {
         $this->query_count++;
+        if (strpos($sql, 'SELECT DISTINCT s.id, s.name') !== false) { return array(); }
         return array((object) array(
             'id' => 1, 'room_id' => 2, 'room_name' => 'Blue room', 'room_color' => '#123456',
             'booking_date' => '2026-11-30', 'starts_at' => '10:00:00', 'ends_at' => '11:00:00',
@@ -67,6 +73,14 @@ $fields = calsys_calendar_hidden_query_fields(array('page_id' => '6', 'filter' =
 expect(strpos($fields, 'name="page_id" value="6"') !== false && strpos($fields, 'name="filter[x]" value="&lt;value&gt;"') !== false, 'Query parameters must be retained and escaped');
 
 $wpdb = new CalendarTestDatabase();
+$_GET = array('calsys_recurring' => 'yes', 'calsys_series' => 'no');
+$filter_sql = calsys_event_group_filter_sql();
+expect(strpos($filter_sql, "e.recurrence_group <> ''") !== false && strpos($filter_sql, 'e.series_id = 0') !== false, 'Recurrence and named series filters must apply independently');
+$_GET = array('calsys_recurring' => array('yes'), 'calsys_series' => 'invalid');
+expect(calsys_event_group_filter_sql() === '', 'Invalid group filters must not alter the query');
+$_GET = array('calsys_series' => 'id_3');
+expect(strpos(calsys_event_group_filter_sql(), 'e.series_id = %d') !== false, 'A named-series filter must use a prepared ID');
+$_GET = array();
 $booking_rules = array(
     'weekly_hours' => array_fill(0, 7, array('mode' => 'unrestricted', 'open' => '', 'close' => '')),
     'holiday_hours' => array(),
@@ -134,4 +148,35 @@ $staff = false;
 $active_rooms = false;
 $html = calsys_render_calendar('Rooms', array(), $month, 'rooms', 'day', new DateTimeImmutable('2026-11-12', wp_timezone()), true);
 expect(strpos($html, 'data-calsys-add-room') === false, 'No room action should be shown when there are no active rooms');
+
+$events = array(
+    (object) array('id' => 1, 'title' => 'Outside month', 'starts_at' => '2026-10-28 10:00:00', 'ends_at' => '2026-10-28 11:00:00', 'all_day' => 0, 'calendar_type' => 'event'),
+    (object) array('id' => 2, 'title' => 'Overlapping event', 'starts_at' => '2026-10-31 10:00:00', 'ends_at' => '2026-11-02 11:00:00', 'all_day' => 0, 'calendar_type' => 'event'),
+    (object) array('id' => 3, 'title' => 'Week event', 'starts_at' => '2026-11-12 10:00:00', 'ends_at' => '2026-11-12 11:00:00', 'all_day' => 0, 'calendar_type' => 'event', 'description' => '<b>Details &amp; more</b>'),
+    (object) array('id' => 4, 'title' => 'Room booking', 'starts_at' => '2026-11-12 10:00:00', 'ends_at' => '2026-11-12 11:00:00', 'all_day' => 0, 'calendar_type' => 'room'),
+    (object) array('id' => 5, 'title' => 'Next month', 'starts_at' => '2026-12-01 10:00:00', 'ends_at' => '2026-12-01 11:00:00', 'all_day' => 0, 'calendar_type' => 'event'),
+);
+$html = calsys_render_calendar('Calendar', $events, $month, 'combined', 'month', $selected, true);
+preg_match('/<div class="calsys-print-events" hidden>(.*?)<\/div>/s', $html, $match);
+expect(!empty($match[1]) && strpos($match[1], 'Overlapping event') !== false && strpos($match[1], 'Week event') !== false, 'Monthly print list must include events overlapping the month');
+expect(strpos($match[1], 'Outside month') === false && strpos($match[1], 'Next month') === false && strpos($match[1], 'Room booking') === false, 'Monthly print list must exclude adjacent-month events and room bookings');
+expect(strpos($match[1], '&lt;b&gt;') === false && strpos($match[1], 'Details') !== false, 'Event descriptions must be rendered as safe text');
+$html = calsys_render_calendar('Calendar', $events, $month, 'combined', 'week', $selected, true);
+preg_match('/<div class="calsys-print-events" hidden>(.*?)<\/div>/s', $html, $match);
+expect(strpos($match[1], 'Week event') !== false && strpos($match[1], 'Overlapping event') === false, 'Weekly print list must use the configured week boundaries');
+$week_start = 1;
+$boundary_events = array(
+    (object) array('id' => 6, 'title' => 'Week end', 'starts_at' => '2026-12-07 00:00:00', 'ends_at' => '2026-12-07 01:00:00', 'all_day' => 0, 'calendar_type' => 'event'),
+    (object) array('id' => 7, 'title' => 'Next month in week', 'starts_at' => '2026-12-01 10:00:00', 'ends_at' => '2026-12-01 11:00:00', 'all_day' => 0, 'calendar_type' => 'event'),
+    (object) array('id' => 8, 'title' => 'Ends at week start', 'starts_at' => '2026-11-29 23:00:00', 'ends_at' => '2026-11-30 00:00:00', 'all_day' => 0, 'calendar_type' => 'event'),
+    (object) array('id' => 9, 'title' => 'First in week', 'starts_at' => '2026-11-30 10:00:00', 'ends_at' => '2026-11-30 11:00:00', 'all_day' => 0, 'calendar_type' => 'event'),
+);
+$html = calsys_render_calendar('Calendar', $boundary_events, $month, 'events', 'week', $date, true);
+preg_match('/<div class="calsys-print-events" hidden>(.*?)<\/div>/s', $html, $match);
+expect(strpos($match[1], 'Next month in week') !== false && strpos($match[1], 'First in week') < strpos($match[1], 'Next month in week'), 'Week list must include adjacent months in chronological order');
+expect(strpos($match[1], 'Week end') === false && strpos($match[1], 'Ends at week start') === false, 'Week list must exclude events outside its exclusive boundaries');
+$html = calsys_render_calendar('Calendar', array(), $month, 'events', 'week', $selected, true);
+expect(strpos($html, 'No events for this period.') !== false, 'An empty print list must explain that there are no events');
+$html = calsys_render_calendar('Calendar', array(), $month, 'events', 'day', $selected, true);
+expect(strpos($html, 'data-calsys-print="calendar"') !== false && strpos($html, 'data-calsys-print="events"') === false, 'Day view must offer calendar printing but not a month or week list');
 echo "Calendar views passed.\n";

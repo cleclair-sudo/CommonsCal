@@ -215,16 +215,15 @@ function calsys_admin_room_approvals_page() {
                                 <p class="calsys-review-date"><?php echo esc_html(mysql2date(get_option('date_format'), $request->booking_date)); ?> &middot; <?php echo esc_html(mysql2date(get_option('time_format'), $request->booking_date . ' ' . $request->starts_at)); ?> &ndash; <?php echo esc_html(mysql2date(get_option('time_format'), $request->booking_date . ' ' . $request->ends_at)); ?></p>
                             </div>
                             <div class="calsys-review-actions">
-                                <?php foreach (array('approve' => __('Approve', 'community-calendar-study-rooms'), 'deny' => __('Deny', 'community-calendar-study-rooms')) as $decision => $label) : ?>
-                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                                        <?php wp_nonce_field('calsys_booking_decision_' . $request->id); ?>
-                                        <input type="hidden" name="action" value="calsys_booking_decision">
-                                        <input type="hidden" name="calsys_return_page" value="calsys-room-approvals">
-                                        <input type="hidden" name="booking_id" value="<?php echo esc_attr($request->id); ?>">
-                                        <input type="hidden" name="decision" value="<?php echo esc_attr($decision); ?>">
-                                        <button class="button <?php echo $decision === 'approve' ? 'button-primary' : 'button-secondary'; ?>" type="submit"><?php echo esc_html($label); ?></button>
-                                    </form>
-                                <?php endforeach; ?>
+                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                    <?php wp_nonce_field('calsys_booking_decision_' . $request->id); ?>
+                                    <input type="hidden" name="action" value="calsys_booking_decision">
+                                    <input type="hidden" name="calsys_return_page" value="calsys-room-approvals">
+                                    <input type="hidden" name="booking_id" value="<?php echo esc_attr($request->id); ?>">
+                                    <label><?php esc_html_e('Comment to requester (optional)', 'community-calendar-study-rooms'); ?><br><textarea name="decision_comment" rows="2" maxlength="4000"></textarea></label><br>
+                                    <button class="button button-primary" type="submit" name="decision" value="approve"><?php esc_html_e('Approve', 'community-calendar-study-rooms'); ?></button>
+                                    <button class="button button-secondary" type="submit" name="decision" value="deny"><?php esc_html_e('Deny', 'community-calendar-study-rooms'); ?></button>
+                                </form>
                             </div>
                         </div>
                         <dl class="calsys-review-details">
@@ -362,6 +361,9 @@ function calsys_admin_events_page() {
             <input type="hidden" name="event_id" value="<?php echo esc_attr($editing ? $editing->id : 0); ?>">
             <p><label for="calsys-event-title"><?php esc_html_e('Title', 'community-calendar-study-rooms'); ?></label><br>
                 <input id="calsys-event-title" name="title" type="text" class="regular-text" required maxlength="200" value="<?php echo esc_attr($editing ? $editing->title : ''); ?>"></p>
+            <p><label for="calsys-event-initials"><?php esc_html_e('Your initials', 'community-calendar-study-rooms'); ?></label><br>
+                <input id="calsys-event-initials" name="staff_initials" type="text" required maxlength="10">
+                <?php if ($editing && !empty($editing->staff_initials)) : ?><span class="description"><?php echo esc_html(sprintf(__('Last saved by: %s', 'community-calendar-study-rooms'), $editing->staff_initials)); ?></span><?php endif; ?></p>
             <p><label for="calsys-event-description"><?php esc_html_e('Description', 'community-calendar-study-rooms'); ?></label><br>
                 <textarea id="calsys-event-description" name="description" rows="5" class="large-text"><?php echo esc_textarea($editing ? $editing->description : ''); ?></textarea></p>
             <?php echo calsys_event_image_field($editing->image_id ?? 0); ?>
@@ -371,7 +373,7 @@ function calsys_admin_events_page() {
                 <input id="calsys-event-end" name="ends_at" type="datetime-local" required value="<?php echo esc_attr($editing ? str_replace(' ', 'T', substr($editing->ends_at, 0, 16)) : ''); ?>"></p>
             <?php if ($editing && $editing->recurrence_group) : ?>
                 <p><label for="calsys-event-scope"><?php esc_html_e('Apply changes to', 'community-calendar-study-rooms'); ?></label><br>
-                    <select id="calsys-event-scope" name="event_scope"><option value="one"><?php esc_html_e('This event only', 'community-calendar-study-rooms'); ?></option><option value="future"><?php esc_html_e('This and future events', 'community-calendar-study-rooms'); ?></option><option value="all"><?php esc_html_e('All events in this series', 'community-calendar-study-rooms'); ?></option></select>
+                    <select id="calsys-event-scope" name="event_scope"><option value="one"><?php esc_html_e('This event only', 'community-calendar-study-rooms'); ?></option><option value="future"><?php esc_html_e('This and future recurring events', 'community-calendar-study-rooms'); ?></option><option value="all"><?php esc_html_e('All recurring events', 'community-calendar-study-rooms'); ?></option></select>
                     <span class="description"><?php esc_html_e('All shown fields, including room and equipment, replace the values for selected events. Dates shift by the same amount; registrations stay with each event.', 'community-calendar-study-rooms'); ?></span></p>
             <?php endif; ?>
             <p><label for="calsys-event-capacity"><?php esc_html_e('Event registration limit (0 uses the global setting)', 'community-calendar-study-rooms'); ?></label><br>
@@ -384,6 +386,7 @@ function calsys_admin_events_page() {
                 </select></p>
             <p><label for="calsys-event-category"><?php esc_html_e('Category', 'community-calendar-study-rooms'); ?></label><br>
                 <select id="calsys-event-category" name="category"><?php foreach ($categories as $key => $label) : ?><option value="<?php echo esc_attr($key); ?>" <?php selected($editing ? $editing->category : 'adult', $key); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select></p>
+            <?php echo calsys_event_series_field($editing->series_id ?? 0); ?>
             <?php echo calsys_event_registration_editor(
                 $editing ? !empty($editing->registration_enabled) : !empty($registration_defaults['enabled_by_default']),
                 $editing ? $editing_registration_fields : $registration_defaults['default_fields'],
@@ -401,10 +404,13 @@ function calsys_admin_events_page() {
             ?>
             <?php if (!$editing) : ?>
                 <p><label><input name="recurring" type="checkbox" value="1" data-calsys-toggle-recurrence> <?php esc_html_e('Repeat this event', 'community-calendar-study-rooms'); ?></label></p>
+                <p data-calsys-register-recurrences hidden><label><input name="register_all_recurrences" type="checkbox" value="1"> <?php esc_html_e('Let attendees register for all recurring events', 'community-calendar-study-rooms'); ?></label></p>
                 <p data-calsys-recurrence-field hidden><label><?php esc_html_e('Repeat', 'community-calendar-study-rooms'); ?><select name="recurrence_frequency"><option value="daily"><?php esc_html_e('Daily', 'community-calendar-study-rooms'); ?></option><option value="weekly"><?php esc_html_e('Weekly', 'community-calendar-study-rooms'); ?></option><option value="monthly"><?php esc_html_e('Monthly', 'community-calendar-study-rooms'); ?></option></select></label></p>
                 <p data-calsys-recurrence-field hidden><label><?php esc_html_e('Stop repeating by', 'community-calendar-study-rooms'); ?><select name="recurrence_end_type" data-calsys-recurrence-end><option value="count"><?php esc_html_e('Number of occurrences', 'community-calendar-study-rooms'); ?></option><option value="date"><?php esc_html_e('End date', 'community-calendar-study-rooms'); ?></option></select></label></p>
                 <p data-calsys-recurrence-field hidden data-calsys-occurrences><label><?php esc_html_e('Occurrences (maximum 100)', 'community-calendar-study-rooms'); ?><input name="recurrence_count" type="number" min="2" max="100" value="10"></label></p>
                 <p data-calsys-recurrence-field hidden data-calsys-end-date><label><?php esc_html_e('Repeat through', 'community-calendar-study-rooms'); ?><input name="recurrence_until" type="date"></label></p>
+            <?php elseif (!empty($editing->recurrence_group)) : ?>
+                <p><label><input name="register_all_recurrences" type="checkbox" value="1" <?php checked(!empty($editing->register_all_recurrences)); ?>> <?php esc_html_e('Let attendees register for all recurring events', 'community-calendar-study-rooms'); ?></label></p>
             <?php endif; ?>
             <?php submit_button($editing ? __('Update event', 'community-calendar-study-rooms') : __('Create event', 'community-calendar-study-rooms')); ?>
             <?php if ($editing) : ?><a class="button" href="<?php echo esc_url(admin_url('admin.php?page=calsys-events')); ?>"><?php esc_html_e('Cancel', 'community-calendar-study-rooms'); ?></a><?php endif; ?>
@@ -412,7 +418,7 @@ function calsys_admin_events_page() {
 
         <h2><?php esc_html_e('All events', 'community-calendar-study-rooms'); ?></h2>
         <table class="widefat striped">
-            <thead><tr><th><?php esc_html_e('Event', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Date', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Category', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Registrations', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Visibility', 'community-calendar-study-rooms'); ?></th><th></th></tr></thead>
+            <thead><tr><th><?php esc_html_e('Event', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Date', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Category', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Staff initials', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Registrations', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Visibility', 'community-calendar-study-rooms'); ?></th><th></th></tr></thead>
             <tbody>
             <?php if ($events) : foreach ($events as $event) : ?>
                 <?php $effective_capacity = calsys_event_capacity($event->capacity); ?>
@@ -420,6 +426,7 @@ function calsys_admin_events_page() {
                     <td><?php echo esc_html($event->title); ?></td>
                     <td><?php echo esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at)); ?></td>
                     <td><?php echo esc_html($categories[$event->category] ?? $event->category); ?></td>
+                    <td><?php echo esc_html($event->staff_initials ?? ''); ?></td>
                     <td>
                         <a href="<?php echo esc_url(add_query_arg(array('page' => 'calsys-events', 'view_registrations' => $event->id), admin_url('admin.php'))); ?>">
                             <?php echo esc_html($event->registration_count); ?><?php if ($effective_capacity > 0) : ?> / <?php echo esc_html($effective_capacity); ?><?php endif; ?>
@@ -437,7 +444,7 @@ function calsys_admin_events_page() {
                     </td>
                 </tr>
             <?php endforeach; else : ?>
-                <tr><td colspan="6"><?php esc_html_e('No events yet.', 'community-calendar-study-rooms'); ?></td></tr>
+                <tr><td colspan="7"><?php esc_html_e('No events yet.', 'community-calendar-study-rooms'); ?></td></tr>
             <?php endif; ?>
             </tbody>
         </table>
@@ -632,12 +639,12 @@ function calsys_admin_rooms_page() {
     $room_calendar_load_failed = $room_calendar_entries === false;
     $room_calendar_events = $wpdb->get_results($wpdb->prepare(
         "SELECT e.id, e.title, e.description, e.image_id, e.starts_at, e.ends_at, e.capacity, e.status, e.category, e.registration_fields,
-        e.registration_enabled, e.registration_recipients, e.show_registration_counts, e.recurrence_group,
+        e.registration_enabled, e.registration_recipients, e.show_registration_counts, e.recurrence_group, e.staff_initials, e.series_id, e.register_all_recurrences,
         (SELECT b.room_id FROM " . calsys_table('bookings') . " b WHERE b.source_type = 'event' AND b.source_id = e.id ORDER BY b.id ASC LIMIT 1) AS room_id,
         0 AS all_day, 'event' AS calendar_type,
         (SELECT COUNT(*) FROM " . calsys_table('registrations') . " r WHERE r.event_id = e.id) AS registration_count
         FROM " . calsys_table('events') . " e
-        WHERE e.status = %s AND e.starts_at < %s AND e.ends_at >= %s " . calsys_event_category_sql() . "
+        WHERE e.status = %s AND e.starts_at < %s AND e.ends_at >= %s " . calsys_event_category_sql() . calsys_event_group_filter_sql() . "
         ORDER BY e.starts_at ASC",
         'published',
         $grid_end->format('Y-m-d H:i:s'),
@@ -697,6 +704,9 @@ function calsys_admin_rooms_page() {
                     <p><?php esc_html_e('Review room bookings alongside upcoming events, or select a day to add a booking.', 'community-calendar-study-rooms'); ?></p></div>
             </div>
             <div class="calsys-calendar-widget calsys-calendar-widget-rooms">
+                <?php if (isset($_GET['calsys_notice']) && in_array(wp_unslash($_GET['calsys_notice']), array('registration_results', 'registration_results_unavailable', 'registration_complete', 'invalid_registration', 'already_registered', 'event_full', 'registration_disabled', 'registration_closed', 'waitlist_joined', 'waitlist_joined_email_failed'), true)) : ?>
+                    <?php echo calsys_public_notice(); ?>
+                <?php endif; ?>
                 <?php echo calsys_render_calendar(__('Room bookings and upcoming events', 'community-calendar-study-rooms'), $room_calendar_entries, $month, 'combined'); ?>
                 <?php echo calsys_render_event_registration_forms($room_calendar_events); ?>
                 <?php echo calsys_front_event_form(); ?>
@@ -741,15 +751,16 @@ function calsys_admin_rooms_page() {
                     <td><?php echo esc_html(mysql2date(get_option('date_format'), $booking->booking_date)); ?>, <?php echo esc_html(mysql2date(get_option('time_format'), $booking->booking_date . ' ' . $booking->starts_at)); ?> - <?php echo esc_html(mysql2date(get_option('time_format'), $booking->booking_date . ' ' . $booking->ends_at)); ?></td>
                     <td><?php echo esc_html(ucfirst($booking->status)); ?></td>
                     <td>
-                    <?php if ($booking->status === 'pending') : foreach (array('approve' => __('Approve', 'community-calendar-study-rooms'), 'deny' => __('Deny', 'community-calendar-study-rooms')) as $decision => $label) : ?>
+                    <?php if ($booking->status === 'pending') : ?>
                         <form class="calsys-inline-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                             <?php wp_nonce_field('calsys_booking_decision_' . $booking->id); ?>
                             <input type="hidden" name="action" value="calsys_booking_decision">
                             <input type="hidden" name="booking_id" value="<?php echo esc_attr($booking->id); ?>">
-                            <input type="hidden" name="decision" value="<?php echo esc_attr($decision); ?>">
-                            <?php submit_button($label, 'secondary small', 'submit', false); ?>
+                            <label><?php esc_html_e('Comment to requester (optional)', 'community-calendar-study-rooms'); ?><br><textarea name="decision_comment" rows="2" maxlength="4000"></textarea></label><br>
+                            <button class="button button-secondary button-small" type="submit" name="decision" value="approve"><?php esc_html_e('Approve', 'community-calendar-study-rooms'); ?></button>
+                            <button class="button button-secondary button-small" type="submit" name="decision" value="deny"><?php esc_html_e('Deny', 'community-calendar-study-rooms'); ?></button>
                         </form>
-                    <?php endforeach; endif; ?>
+                    <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; else : ?>

@@ -72,6 +72,7 @@ function calsys_admin_enqueue($hook_suffix) {
             'editStaffTime' => __('Edit staff time', 'community-calendar-study-rooms'),
             'saveStaffEntry' => __('Save staff entry', 'community-calendar-study-rooms'),
             'saveChanges' => __('Save changes', 'community-calendar-study-rooms'),
+            'lastSavedBy' => __('Last saved by: %s', 'community-calendar-study-rooms'),
             'confirmDeleteStaffEntry' => __('Delete this staff entry and its linked room reservation?', 'community-calendar-study-rooms'),
             'editRoomBooking' => __('Edit room booking', 'community-calendar-study-rooms'),
             'confirmDeleteRoomBooking' => __('Delete this room booking?', 'community-calendar-study-rooms'),
@@ -83,6 +84,8 @@ function calsys_admin_enqueue($hook_suffix) {
             'removeEventImage' => __('Remove image', 'community-calendar-study-rooms'),
             'invalidEventImage' => __('Please choose an image file.', 'community-calendar-study-rooms'),
             'mediaLibraryUnavailable' => __('The WordPress Media Library is not available on this page.', 'community-calendar-study-rooms'),
+            'printUnavailable' => __('The printable view could not be loaded.', 'community-calendar-study-rooms'),
+            'printBlocked' => __('Please allow pop-ups to print the calendar.', 'community-calendar-study-rooms'),
         ));
         return;
     }

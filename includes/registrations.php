@@ -3,26 +3,29 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-/** Validates and records an event registration and sends configured notifications. */
+/** Registers the selected event and any eligible related events. */
 function calsys_register_event() {
     check_admin_referer('calsys_register_event');
     global $wpdb;
 
     $event_id = absint($_POST['event_id'] ?? 0);
-    $name = sanitize_text_field(wp_unslash($_POST['name'] ?? ''));
-    $email = sanitize_email(wp_unslash($_POST['email'] ?? ''));
-    $events_table = calsys_table('events');
+    if (!isset($_POST['name'], $_POST['email']) || !is_string($_POST['name']) || !is_string($_POST['email'])) {
+        calsys_frontend_redirect('invalid_registration');
+    }
+    $name = sanitize_text_field(wp_unslash($_POST['name']));
+    $email = sanitize_email(wp_unslash($_POST['email']));
     $event = $event_id ? $wpdb->get_row($wpdb->prepare(
-        "SELECT * FROM $events_table WHERE id = %d AND status = 'published'",
+        "SELECT * FROM " . calsys_table('events') . " WHERE id = %d AND status = 'published'",
         $event_id
     )) : null;
     if (!$event) {
         calsys_frontend_redirect('invalid_registration');
     }
-    if (!calsys_get_settings()['event_registration']['enabled'] || empty($event->registration_enabled)) {
+    $multi_requested = !empty($_POST['series_events']) || !empty($_POST['series_select_all']) || !empty($_POST['all_recurrences']);
+    if (!calsys_get_settings()['event_registration']['enabled'] || (empty($event->registration_enabled) && !$multi_requested)) {
         calsys_frontend_redirect('registration_disabled');
     }
-    if (!calsys_event_registration_is_open($event->starts_at)) {
+    if (!calsys_event_registration_is_open($event->starts_at) && !$multi_requested) {
         calsys_frontend_redirect('registration_closed');
     }
     if ($name === '' || strlen($name) > 200 || !is_email($email) || strlen($email) > 200) {
@@ -39,29 +42,130 @@ function calsys_register_event() {
         isset($_POST['reminder_opt_in']) && is_scalar($_POST['reminder_opt_in']) &&
         wp_unslash($_POST['reminder_opt_in']) === '1';
 
-    if (calsys_promote_event_waitlist($event_id) === 'error') {
+    $extra_ids = $_POST['series_events'] ?? array();
+    if (!is_array($extra_ids) || count($extra_ids) > 1000) {
         calsys_frontend_redirect('invalid_registration');
+    }
+    $ids = array($event_id);
+    foreach ($extra_ids as $raw_id) {
+        if (!is_string($raw_id) || !preg_match('/^[1-9][0-9]*$/', $raw_id)) {
+            calsys_frontend_redirect('invalid_registration');
+        }
+        $ids[] = (int) $raw_id;
+    }
+    if (isset($_POST['series_select_all'])) {
+        if ($_POST['series_select_all'] !== '1' || empty($event->series_id)) {
+            calsys_frontend_redirect('invalid_registration');
+        }
+        $series_events = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, starts_at, registration_fields FROM " . calsys_table('events') . "
+            WHERE series_id = %d AND status = 'published' AND registration_enabled = 1 ORDER BY starts_at, id",
+            $event->series_id
+        ));
+        if (!is_array($series_events) || $wpdb->last_error) {
+            error_log('CommonsCal: unable to load series events for registration: ' . $wpdb->last_error);
+            calsys_frontend_redirect('invalid_registration');
+        }
+        foreach ($series_events as $series_event) {
+            if (calsys_event_registration_is_open($series_event->starts_at) &&
+                calsys_decode_registration_fields($series_event->registration_fields ?? '') === $event_fields) {
+                $ids[] = (int) $series_event->id;
+            }
+        }
+    }
+    if (isset($_POST['all_recurrences'])) {
+        if ($_POST['all_recurrences'] !== '1' || empty($event->register_all_recurrences) || empty($event->recurrence_group)) {
+            calsys_frontend_redirect('invalid_registration');
+        }
+        $recurrence_ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT id FROM " . calsys_table('events') . " WHERE recurrence_group = %s AND status = 'published' AND starts_at > %s ORDER BY starts_at, id",
+            $event->recurrence_group,
+            current_time('mysql')
+        ));
+        if (!is_array($recurrence_ids) || $wpdb->last_error) {
+            error_log('CommonsCal: unable to load recurring events for registration: ' . $wpdb->last_error);
+            calsys_frontend_redirect('invalid_registration');
+        }
+        $ids = array_merge($ids, array_map('intval', $recurrence_ids));
+    }
+    $ids = array_values(array_unique($ids));
+    $results = array();
+    foreach ($ids as $id) {
+        $results[] = calsys_register_one_event(
+            $id, $event, $name, $email, $event_fields, $answers, $reminder_opt_in,
+            $id === $event_id && ($_POST['join_waitlist'] ?? '') === '1',
+            $id !== $event_id && isset($_POST['all_recurrences'])
+        );
+    }
+    if (count($results) === 1) {
+        calsys_frontend_redirect($results[0]['status']);
+    }
+    $token = wp_generate_uuid4();
+    if (!set_transient('calsys_registration_result_' . $token, $results, 10 * MINUTE_IN_SECONDS)) {
+        error_log('CommonsCal: unable to store multi-event registration results');
+        calsys_frontend_redirect('registration_results_unavailable');
+    }
+    calsys_frontend_redirect('registration_results', array('calsys_registration_result' => $token));
+}
+add_action('admin_post_calsys_register_event', 'calsys_register_event');
+add_action('admin_post_nopriv_calsys_register_event', 'calsys_register_event');
+
+/** Determines whether an event may be included in this registration. */
+function calsys_registration_related_event($event, $anchor, $allow_recurrence) {
+    return (int) $event->id === (int) $anchor->id ||
+        (!empty($anchor->series_id) && (int) $anchor->series_id === (int) ($event->series_id ?? 0)) ||
+        ($allow_recurrence && !empty($anchor->register_all_recurrences) && !empty($anchor->recurrence_group) &&
+            $anchor->recurrence_group === ($event->recurrence_group ?? ''));
+}
+
+/** Registers one occurrence using the existing per-event capacity and waitlist rules. */
+function calsys_register_one_event($event_id, $anchor, $name, $email, $event_fields, $answers, $reminder_opt_in, $join_waitlist, $allow_recurrence) {
+    global $wpdb;
+    $events_table = calsys_table('events');
+    $notification_settings = calsys_get_settings()['notifications'];
+    $result = array('id' => $event_id, 'title' => '', 'starts_at' => '', 'status' => 'invalid_registration');
+    $candidate = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM $events_table WHERE id = %d AND status = 'published'", $event_id
+    ));
+    if (!$candidate || !calsys_registration_related_event($candidate, $anchor, $allow_recurrence)) {
+        return $result;
+    }
+    $result['title'] = $candidate->title;
+    $result['starts_at'] = $candidate->starts_at;
+    if (calsys_decode_registration_fields($candidate->registration_fields ?? '') !== $event_fields) {
+        return $result;
+    }
+    if (calsys_promote_event_waitlist($event_id) === 'error') {
+        return $result;
     }
     $registrations_table = calsys_table('registrations');
     if ($wpdb->query('START TRANSACTION') === false) {
-        calsys_frontend_redirect('invalid_registration');
+        return $result;
     }
     $locked_event = $wpdb->get_row($wpdb->prepare(
-        "SELECT id, capacity, starts_at, registration_enabled FROM $events_table WHERE id = %d AND status = 'published' AND starts_at > %s FOR UPDATE",
-        $event_id,
-        current_time('mysql')
+        "SELECT * FROM $events_table WHERE id = %d AND status = 'published' FOR UPDATE",
+        $event_id
     ));
     if (!$locked_event) {
         $wpdb->query('ROLLBACK');
-        calsys_frontend_redirect('invalid_registration');
+        return $result;
+    }
+    $result['title'] = $locked_event->title;
+    $result['starts_at'] = $locked_event->starts_at;
+    if (!calsys_registration_related_event($locked_event, $anchor, $allow_recurrence) ||
+        calsys_decode_registration_fields($locked_event->registration_fields ?? '') !== $event_fields) {
+        $wpdb->query('ROLLBACK');
+        return $result;
     }
     if (empty($locked_event->registration_enabled)) {
         $wpdb->query('ROLLBACK');
-        calsys_frontend_redirect('registration_disabled');
+        $result['status'] = 'registration_disabled';
+        return $result;
     }
     if (!calsys_event_registration_is_open($locked_event->starts_at)) {
         $wpdb->query('ROLLBACK');
-        calsys_frontend_redirect('registration_closed');
+        $result['status'] = 'registration_closed';
+        return $result;
     }
     $existing = $wpdb->get_var($wpdb->prepare(
         "SELECT id FROM $registrations_table WHERE event_id = %d AND email = %s",
@@ -71,7 +175,7 @@ function calsys_register_event() {
     if ($wpdb->last_error) {
         error_log('CommonsCal: unable to check event registration: ' . $wpdb->last_error);
         $wpdb->query('ROLLBACK');
-        calsys_frontend_redirect('invalid_registration');
+        return $result;
     }
     $waiting = $wpdb->get_var($wpdb->prepare(
         "SELECT id FROM " . calsys_table('waitlist') . " WHERE event_id = %d AND email = %s",
@@ -81,7 +185,7 @@ function calsys_register_event() {
     if ($wpdb->last_error) {
         error_log('CommonsCal: unable to check event waitlist: ' . $wpdb->last_error);
         $wpdb->query('ROLLBACK');
-        calsys_frontend_redirect('invalid_registration');
+        return $result;
     }
     $count = $wpdb->get_var($wpdb->prepare(
         "SELECT COUNT(*) FROM $registrations_table WHERE event_id = %d",
@@ -90,17 +194,19 @@ function calsys_register_event() {
     if ($count === null || $count === false || $wpdb->last_error) {
         error_log('CommonsCal: unable to check event waitlist: ' . $wpdb->last_error);
         $wpdb->query('ROLLBACK');
-        calsys_frontend_redirect('invalid_registration');
+        return $result;
     }
     if ($existing || $waiting) {
         $wpdb->query('ROLLBACK');
-        calsys_frontend_redirect('already_registered');
+        $result['status'] = 'already_registered';
+        return $result;
     }
     $effective_capacity = calsys_event_capacity($locked_event->capacity);
     if ($effective_capacity > 0 && (int) $count >= $effective_capacity) {
-        if (($_POST['join_waitlist'] ?? '') !== '1') {
+        if (!$join_waitlist) {
             $wpdb->query('ROLLBACK');
-            calsys_frontend_redirect('event_full');
+            $result['status'] = 'event_full';
+            return $result;
         }
         $inserted = $wpdb->insert(calsys_table('waitlist'), array(
             'event_id' => $event_id,
@@ -113,14 +219,15 @@ function calsys_register_event() {
         if (!$inserted || $wpdb->query('COMMIT') === false) {
             error_log('CommonsCal: unable to save event waitlist: ' . $wpdb->last_error);
             $wpdb->query('ROLLBACK');
-            calsys_frontend_redirect('invalid_registration');
+            return $result;
         }
         $sent = calsys_send_email(
             strtolower($email),
-            sprintf(__('Waitlist joined: %s', 'community-calendar-study-rooms'), $event->title),
-            sprintf(__('Hello %1$s, you are on the waitlist for %2$s. We will email you if a place becomes available.', 'community-calendar-study-rooms'), $name, $event->title)
+            sprintf(__('Waitlist joined: %s', 'community-calendar-study-rooms'), $locked_event->title),
+            sprintf(__('Hello %1$s, you are on the waitlist for %2$s. We will email you if a place becomes available.', 'community-calendar-study-rooms'), $name, $locked_event->title)
         );
-        calsys_frontend_redirect($sent ? 'waitlist_joined' : 'waitlist_joined_email_failed');
+        $result['status'] = $sent ? 'waitlist_joined' : 'waitlist_joined_email_failed';
+        return $result;
     }
 
     $inserted = $wpdb->insert($registrations_table, array(
@@ -133,8 +240,9 @@ function calsys_register_event() {
     ), array('%d', '%s', '%s', '%s', '%d', '%s'));
     if (!$inserted || $wpdb->query('COMMIT') === false) {
         $wpdb->query('ROLLBACK');
-        calsys_frontend_redirect('invalid_registration');
+        return $result;
     }
+    $event = $locked_event;
     if ($notification_settings['email_event_registrant']) {
         calsys_send_email(
             strtolower($email),
@@ -173,10 +281,9 @@ function calsys_register_event() {
             $message
         );
     }
-    calsys_frontend_redirect('registration_complete');
+    $result['status'] = 'registration_complete';
+    return $result;
 }
-add_action('admin_post_calsys_register_event', 'calsys_register_event');
-add_action('admin_post_nopriv_calsys_register_event', 'calsys_register_event');
 
 /** Validates attendee answers against an event's custom registration fields. */
 function calsys_validate_registration_answers($fields, $raw_answers) {

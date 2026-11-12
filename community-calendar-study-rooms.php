@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) {
 }
 
 define('CALSYS_VERSION', '0.09.24');
-define('CALSYS_DB_VERSION', '11');
+define('CALSYS_DB_VERSION', '13');
 define('CALSYS_PLUGIN_FILE', __FILE__);
 
 require_once __DIR__ . '/includes/core.php';

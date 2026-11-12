@@ -57,6 +57,7 @@ function absint($value) { return abs((int) $value); }
 function sanitize_key($value) { return $value; }
 function wp_unslash($value) { return $value; }
 function sanitize_text_field($value) { return trim($value); }
+function sanitize_textarea_field($value) { return trim(strip_tags($value)); }
 function sanitize_hex_color($value) { return preg_match('/^#(?:[a-f0-9]{3}|[a-f0-9]{6})$/i', $value) ? $value : null; }
 function is_email($value) { return filter_var($value, FILTER_VALIDATE_EMAIL); }
 function calsys_send_email($recipient, $subject, $message) { $GLOBALS['sent_emails'][] = array($recipient, $subject, $message); return $GLOBALS['email_succeeds']; }
@@ -92,6 +93,7 @@ $html = render('calsys_admin_room_approvals_page');
 expect(strpos($html, '&lt;Room&gt;') !== false && strpos($html, 'Group study') !== false, 'Request details are missing or unescaped');
 expect(strpos($html, 'Projector (1)') !== false, 'Requested equipment is missing');
 expect(strpos($html, 'calsys_booking_decision_17') !== false && strpos($html, 'value="approve"') !== false && strpos($html, 'value="deny"') !== false, 'Approval actions are missing');
+expect(strpos($html, 'name="decision_comment"') !== false, 'Decision comment field is missing');
 expect(strpos($wpdb->queries[0], "b.status = 'pending'") !== false, 'Approvals must contain only pending requests');
 $wpdb->result = array();
 expect(strpos(render('calsys_admin_room_approvals_page'), 'No room requests are waiting') !== false, 'Missing empty approvals state');
@@ -143,13 +145,24 @@ $wpdb->row = (object) array('room_id' => 2, 'booking_date' => '2026-12-01', 'sta
 $sent_emails = array();
 $email_succeeds = true;
 foreach (array('approve' => 'approved', 'deny' => 'denied') as $decision => $status) {
-    $_POST = array('booking_id' => '17', 'decision' => $decision, 'calsys_return_page' => 'calsys-room-approvals');
+    $_POST = array('booking_id' => '17', 'decision' => $decision, 'decision_comment' => "Please note:\n<b>Details</b>", 'calsys_return_page' => 'calsys-room-approvals');
     try { calsys_booking_decision(); expect(false, 'Expected redirect'); } catch (TestRedirect $redirect) {
         expect($redirect->page === 'calsys-room-approvals' && $redirect->notice === $status && $wpdb->updated['status'] === $status, 'Decision failed');
         expect($nonce_action === 'calsys_booking_decision_17', 'Wrong decision nonce');
     }
 }
 expect(count($sent_emails) === 2 && strpos($sent_emails[0][1], 'approved') !== false && strpos($sent_emails[1][1], 'declined') !== false, 'Decisions must notify the requester');
+expect(strpos($sent_emails[0][2], "Staff comment:\nPlease note:\nDetails") !== false && strpos($sent_emails[1][2], "Staff comment:\nPlease note:\nDetails") !== false, 'Decision comments must be sanitized and emailed');
+$_POST = array('booking_id' => '17', 'decision' => 'deny', 'decision_comment' => array('invalid'));
+try { calsys_booking_decision(); expect(false, 'Expected invalid comment'); } catch (TestRedirect $redirect) {
+    expect($redirect->notice === 'invalid' && count($sent_emails) === 2, 'Invalid comments must be rejected');
+}
+$_POST['decision_comment'] = str_repeat('x', 16001);
+try { calsys_booking_decision(); expect(false, 'Expected oversized comment'); } catch (TestRedirect $redirect) {
+    expect($redirect->notice === 'invalid' && count($sent_emails) === 2, 'Oversized comments must be rejected');
+}
+expect(calsys_notify_room_status($wpdb->row, 'cancelled'), 'Cancellation without a comment must still work');
+expect(strpos($sent_emails[2][2], 'Staff comment:') === false, 'Empty comments must not appear in status emails');
 $email_succeeds = false;
 $_POST = array('booking_id' => '17', 'decision' => 'approve', 'calsys_return_page' => 'calsys-room-approvals');
 try { calsys_booking_decision(); expect(false, 'Expected redirect'); } catch (TestRedirect $redirect) {

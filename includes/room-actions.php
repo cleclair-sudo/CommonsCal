@@ -257,7 +257,7 @@ add_action('admin_post_calsys_request_room', 'calsys_public_room_booking');
 add_action('admin_post_nopriv_calsys_request_room', 'calsys_public_room_booking');
 
 /** Emails a public room requester about a staff decision or cancellation. */
-function calsys_notify_room_status($booking, $status) {
+function calsys_notify_room_status($booking, $status, $comment = '') {
     if (($booking->source_type ?? '') !== '' || !is_email($booking->requester_email ?? '')) {
         return true;
     }
@@ -275,10 +275,7 @@ function calsys_notify_room_status($booking, $status) {
         error_log('CommonsCal: unable to load room name for status email: ' . $wpdb->last_error);
         return false;
     }
-    return calsys_send_email(
-        $booking->requester_email,
-        $subjects[$status],
-        sprintf(
+    $message = sprintf(
             __("Hello %1\$s,\n\n%2\$s.\nRoom: %3\$s\nDate: %4\$s\nTime: %5\$s to %6\$s", 'community-calendar-study-rooms'),
             $booking->requester_name,
             $subjects[$status],
@@ -286,8 +283,11 @@ function calsys_notify_room_status($booking, $status) {
             $booking->booking_date,
             $booking->starts_at,
             $booking->ends_at
-        )
-    );
+        );
+    if ($comment !== '') {
+        $message .= "\n\n" . __('Staff comment:', 'community-calendar-study-rooms') . "\n" . $comment;
+    }
+    return calsys_send_email($booking->requester_email, $subjects[$status], $message);
 }
 
 /** Approves or denies a pending room request after permission and conflict checks. */
@@ -299,7 +299,12 @@ function calsys_booking_decision() {
     $booking_id = absint($_POST['booking_id'] ?? 0);
     check_admin_referer(($frontend ? 'calsys_front_booking_decision_' : 'calsys_booking_decision_') . $booking_id);
     $decision = sanitize_key(wp_unslash($_POST['decision'] ?? ''));
-    if (!$booking_id || !in_array($decision, array('approve', 'deny'), true)) {
+    $raw_comment = $_POST['decision_comment'] ?? '';
+    if (!$booking_id || !in_array($decision, array('approve', 'deny'), true) || !is_string($raw_comment)) {
+        calsys_action_redirect($frontend, $admin_page, 'invalid');
+    }
+    $comment = sanitize_textarea_field(wp_unslash($raw_comment));
+    if (strlen($comment) > 16000) {
         calsys_action_redirect($frontend, $admin_page, 'invalid');
     }
 
@@ -332,7 +337,7 @@ function calsys_booking_decision() {
         $wpdb->query('ROLLBACK');
         calsys_action_redirect($frontend, $admin_page, 'invalid');
     }
-    $sent = calsys_notify_room_status($booking, $status);
+    $sent = calsys_notify_room_status($booking, $status, $comment);
     calsys_action_redirect($frontend, $admin_page, $sent ? ($decision === 'approve' ? 'approved' : 'denied') : 'room_status_email_failed');
 }
 add_action('admin_post_calsys_booking_decision', 'calsys_booking_decision');

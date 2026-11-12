@@ -4,6 +4,71 @@
 
     var labels = window.calsysPublic || {};
 
+    document.addEventListener('click', function (event) {
+        if (!(event.target instanceof Element)) {
+            return;
+        }
+        var button = event.target.closest('[data-calsys-print]');
+        if (!button) {
+            return;
+        }
+        var calendar = button.closest('.calsys-calendar');
+        var stylesheet = document.getElementById('calsys-public-css') || document.getElementById('calsys-public-calendar-css');
+        if (!calendar || !stylesheet) {
+            window.alert(labels.printUnavailable || 'The printable view could not be loaded.');
+            return;
+        }
+        var printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            window.alert(labels.printBlocked || 'Please allow pop-ups to print the calendar.');
+            return;
+        }
+        var printDocument = printWindow.document;
+        printDocument.documentElement.lang = document.documentElement.lang;
+        printDocument.body.className = 'calsys-print-page';
+        var period = calendar.querySelector('.calsys-calendar-navigation span').textContent;
+        var heading = calendar.querySelector('.calsys-calendar-heading h2').textContent;
+        printDocument.title = heading + ' - ' + period;
+        if (button.getAttribute('data-calsys-print') === 'events') {
+            var list = calendar.querySelector('.calsys-print-events').cloneNode(true);
+            list.removeAttribute('hidden');
+            printDocument.body.appendChild(list);
+        } else {
+            var title = printDocument.createElement('h1');
+            title.textContent = heading;
+            printDocument.body.appendChild(title);
+            var subtitle = printDocument.createElement('p');
+            subtitle.className = 'calsys-print-period';
+            subtitle.textContent = period;
+            printDocument.body.appendChild(subtitle);
+            var table = calendar.querySelector('.calsys-calendar-table').cloneNode(true);
+            table.classList.add(calendar.classList.contains('calsys-view-week') ? 'calsys-print-week' :
+                (calendar.classList.contains('calsys-view-day') ? 'calsys-print-day' : 'calsys-print-month'));
+            table.querySelectorAll('.calsys-day-action, .calsys-entry-action, .calsys-entry-decision').forEach(function (control) {
+                control.remove();
+            });
+            table.querySelectorAll('button.calsys-calendar-entry-title').forEach(function (control) {
+                var text = printDocument.createElement('span');
+                text.className = 'calsys-calendar-entry-title';
+                text.textContent = control.textContent;
+                control.replaceWith(text);
+            });
+            printDocument.body.appendChild(table);
+        }
+        var link = printDocument.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = stylesheet.href;
+        link.onload = function () {
+            printWindow.focus();
+            printWindow.print();
+        };
+        link.onerror = function () {
+            printWindow.close();
+            window.alert(labels.printUnavailable || 'The printable view could not be loaded.');
+        };
+        printDocument.head.appendChild(link);
+    });
+
     // Sets a named form control when it is present in the form.
     function setValue(form, name, value) {
         var field = form.elements.namedItem(name);
@@ -217,6 +282,11 @@
                 registrationInputs[registrationIndex].disabled = !registrationToggle.checked || (publicEventToggle && !publicEventToggle.checked);
             }
         }
+        var seriesChoice = form.querySelector('[name="series_id"]');
+        var seriesName = form.querySelector('[name="series_name"]');
+        if (seriesChoice && seriesName) {
+            seriesName.required = !seriesChoice.disabled && seriesChoice.value === 'new';
+        }
 
         var roomToggle = form.querySelector('[data-calsys-toggle-room]');
         var roomSelect = form.querySelector('[data-calsys-room-select]');
@@ -231,6 +301,14 @@
         var recurrenceToggle = form.querySelector('[data-calsys-toggle-recurrence]');
         var recurrenceFields = form.querySelectorAll('[data-calsys-recurrence-field]');
         var recurrenceVisible = recurrenceToggle && recurrenceToggle.checked;
+        var registerRecurrences = form.querySelector('[data-calsys-register-recurrences]');
+        if (registerRecurrences) {
+            registerRecurrences.hidden = !recurrenceVisible && !form.dataset.calsysEditingRecurrence;
+            var registerRecurrencesInput = registerRecurrences.querySelector('input');
+            if (registerRecurrencesInput) {
+                registerRecurrencesInput.disabled = registerRecurrences.hidden || (publicEventToggle && !publicEventToggle.checked);
+            }
+        }
         for (var i = 0; i < recurrenceFields.length; i++) {
             recurrenceFields[i].hidden = !recurrenceVisible;
         }
@@ -314,6 +392,11 @@
             return null;
         }
         form.reset();
+        delete form.dataset.calsysEditingRecurrence;
+        var savedInitials = form.querySelector('[data-calsys-saved-initials]');
+        if (savedInitials) {
+            savedInitials.textContent = '';
+        }
         var seriesScope = form.querySelector('[data-calsys-series-scope]');
         if (seriesScope) {
             seriesScope.hidden = true;
@@ -691,6 +774,14 @@
             var editEventForm = resetEventForm(widget);
             if (editEventForm) {
                 setValue(editEventForm, 'event_id', button.dataset.eventId);
+                if (button.dataset.recurrenceGroup) {
+                    editEventForm.dataset.calsysEditingRecurrence = '1';
+                }
+                setValue(editEventForm, 'series_id', button.dataset.seriesId || '0');
+                var registerRecurrences = editEventForm.querySelector('[name="register_all_recurrences"]');
+                if (registerRecurrences) {
+                    registerRecurrences.checked = button.dataset.registerAllRecurrences === '1';
+                }
                 var seriesScope = editEventForm.querySelector('[data-calsys-series-scope]');
                 if (seriesScope) {
                     seriesScope.hidden = !button.dataset.recurrenceGroup;
@@ -705,6 +796,10 @@
                     eventSaveButton.textContent = labels.saveChanges || 'Save changes';
                 }
                 setValue(editEventForm, 'title', button.dataset.title);
+                var savedInitials = editEventForm.querySelector('[data-calsys-saved-initials]');
+                if (savedInitials && button.dataset.staffInitials) {
+                    savedInitials.textContent = (labels.lastSavedBy || 'Last saved by: %s').replace('%s', button.dataset.staffInitials);
+                }
                 setEquipment(editEventForm, button.dataset.equipment);
                 setValue(editEventForm, 'description', button.dataset.description);
                 updateEventImage(editEventForm, button.dataset.imageId, button.dataset.imageUrl, button.dataset.imageAlt);
@@ -813,8 +908,20 @@
 
     // Updates conditional form controls after a user changes a setting.
     document.addEventListener('change', function (event) {
-        if (event.target instanceof HTMLInputElement &&
-            event.target.matches('.calsys-category-filter input[name="calsys_category[]"]')) {
+        if (event.target instanceof HTMLInputElement && event.target.matches('[data-calsys-select-series-events]')) {
+            event.target.closest('.calsys-series-selection').querySelectorAll('input[name="series_events[]"]').forEach(function (choice) {
+                choice.checked = event.target.checked;
+            });
+        } else if (event.target instanceof HTMLInputElement && event.target.matches('input[name="series_events[]"]')) {
+            var selection = event.target.closest('.calsys-series-selection');
+            var selectAll = selection.querySelector('[data-calsys-select-series-events]');
+            var choices = selection.querySelectorAll('input[name="series_events[]"]');
+            var checkedChoices = selection.querySelectorAll('input[name="series_events[]"]:checked');
+            selectAll.checked = checkedChoices.length === choices.length;
+            selectAll.indeterminate = checkedChoices.length > 0 && checkedChoices.length < choices.length;
+        }
+        if (event.target instanceof Element &&
+            event.target.matches('.calsys-category-filter input[name="calsys_category[]"], .calsys-category-filter select[name="calsys_recurring"], .calsys-category-filter select[name="calsys_series"]')) {
             var categoryFilter = event.target.closest('[data-calsys-auto-submit]');
             if (categoryFilter) {
                 categoryFilter.requestSubmit();
@@ -857,6 +964,13 @@
             }
         }
     });
+
+    document.addEventListener('formdata', function (event) {
+        var selectAllSeries = event.target.querySelector('[data-calsys-select-series-events]');
+        if (selectAllSeries && selectAllSeries.checked) {
+            event.formData.delete('series_events[]');
+        }
+    }, true);
 
     // Initializes forms rendered after the script was loaded.
     document.addEventListener('DOMContentLoaded', function () {

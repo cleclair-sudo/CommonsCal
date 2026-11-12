@@ -82,6 +82,10 @@ function calsys_save_event($frontend = false) {
 
     $title = sanitize_text_field(wp_unslash($_POST['title'] ?? ''));
     $description = wp_kses_post(wp_unslash($_POST['description'] ?? ''));
+    if (!isset($_POST['staff_initials']) || !is_string($_POST['staff_initials'])) {
+        calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+    }
+    $staff_initials = sanitize_text_field(wp_unslash($_POST['staff_initials']));
     if (isset($_POST['image_id']) && !is_scalar($_POST['image_id'])) {
         calsys_action_redirect($frontend, 'calsys-events', 'invalid');
     }
@@ -152,6 +156,23 @@ function calsys_save_event($frontend = false) {
     }
     $room_id = absint($_POST['room_id'] ?? 0);
     $recurring = !$event_id && isset($_POST['recurring']);
+    $series_choice = $_POST['series_id'] ?? null;
+    if ($series_choice !== null && (!is_string($series_choice) || !preg_match('/^(?:0|new|[1-9][0-9]*)$/', $series_choice))) {
+        calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+    }
+    $series_name = '';
+    if ($series_choice === 'new') {
+        if (!isset($_POST['series_name']) || !is_string($_POST['series_name'])) {
+            calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+        }
+        $series_name = sanitize_text_field(wp_unslash($_POST['series_name']));
+        if ($series_name === '' || strlen($series_name) > 200) {
+            calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+        }
+    }
+    if (isset($_POST['register_all_recurrences']) && $_POST['register_all_recurrences'] !== '1') {
+        calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+    }
     $edit_scope = isset($_POST['event_scope']) && is_string($_POST['event_scope']) ? wp_unslash($_POST['event_scope']) : 'one';
     if (!in_array($edit_scope, array('one', 'future', 'all'), true) || (!$event_id && $edit_scope !== 'one')) {
         calsys_action_redirect($frontend, 'calsys-events', 'invalid');
@@ -161,7 +182,7 @@ function calsys_save_event($frontend = false) {
     $occurrence_count = absint($_POST['recurrence_count'] ?? 0);
     $until = sanitize_text_field(wp_unslash($_POST['recurrence_until'] ?? ''));
 
-    if ($title === '' || strlen($title) > 200 || !$starts_at || !$ends_at || $ends_at <= $starts_at ||
+    if ($title === '' || strlen($title) > 200 || $staff_initials === '' || strlen($staff_initials) > 40 || !$starts_at || !$ends_at || $ends_at <= $starts_at ||
         !in_array($status, array('draft', 'published'), true) || !isset($categories[$category]) ||
         ($event_id && isset($_POST['recurring']))) {
         calsys_action_redirect($frontend, 'calsys-events', 'invalid');
@@ -206,8 +227,9 @@ function calsys_save_event($frontend = false) {
         'registration_enabled' => $registration_enabled ? 1 : 0,
         'registration_recipients' => wp_json_encode($registration_recipients),
         'recurrence_group' => $recurrence_group,
+        'staff_initials' => $staff_initials,
     );
-    $formats = array('%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%s', '%s');
+    $formats = array('%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%s', '%s', '%s');
     if (isset($_POST['show_registration_counts_present'])) {
         if ($_POST['show_registration_counts_present'] !== '1' ||
             (isset($_POST['show_registration_counts']) && $_POST['show_registration_counts'] !== '1')) {
@@ -224,6 +246,36 @@ function calsys_save_event($frontend = false) {
         calsys_action_redirect($frontend, 'calsys-events', 'invalid');
     }
     $table = calsys_table('events');
+    if ($series_choice !== null) {
+        if ($series_choice === 'new') {
+            if (!$wpdb->insert(calsys_table('series'), array('name' => $series_name), array('%s'))) {
+                error_log('CommonsCal: unable to create event series: ' . $wpdb->last_error);
+                $wpdb->query('ROLLBACK');
+                calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+            }
+            $series_id = (int) $wpdb->insert_id;
+        } else {
+            $series_id = (int) $series_choice;
+            if ($series_id && !$wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM " . calsys_table('series') . " WHERE id = %d FOR UPDATE",
+                $series_id
+            ))) {
+                $wpdb->query('ROLLBACK');
+                calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+            }
+        }
+        $data['series_id'] = $series_id;
+        $formats[] = '%d';
+        $register_all = isset($_POST['register_all_recurrences']);
+        if ($register_all && !$recurring && (!$event_id || !$wpdb->get_var($wpdb->prepare(
+            "SELECT recurrence_group FROM $table WHERE id = %d FOR UPDATE", $event_id
+        )))) {
+            $wpdb->query('ROLLBACK');
+            calsys_action_redirect($frontend, 'calsys-events', 'invalid');
+        }
+        $data['register_all_recurrences'] = $register_all ? 1 : 0;
+        $formats[] = '%d';
+    }
     $skipped = 0;
     $updated_ids = array();
     if ($event_id && $edit_scope !== 'one') {

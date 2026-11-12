@@ -35,6 +35,7 @@ function calsys_public_notice() {
     $registration_settings = calsys_get_settings()['event_registration'];
     $messages = array(
         'registration_complete' => $registration_settings['confirmation_message'],
+        'registration_results_unavailable' => __('Some registrations may have been saved, but their results could not be displayed. Please contact staff before trying again.', 'community-calendar-study-rooms'),
         'event_deleted' => __('Event deleted.', 'community-calendar-study-rooms'),
         'event_deleted_email_failed' => __('The event was deleted, but one or more cancellation emails failed. Check the site error log.', 'community-calendar-study-rooms'),
         'staff_event_deleted' => __('Staff calendar entry deleted.', 'community-calendar-study-rooms'),
@@ -67,6 +68,32 @@ function calsys_public_notice() {
         'denied' => __('Room request denied.', 'community-calendar-study-rooms'),
     );
     if (!isset($messages[$key])) {
+        if ($key === 'registration_results') {
+            $token = isset($_GET['calsys_registration_result']) && is_string($_GET['calsys_registration_result']) ? wp_unslash($_GET['calsys_registration_result']) : '';
+            $results = preg_match('/^[a-f0-9-]{36}$/i', $token) ? get_transient('calsys_registration_result_' . $token) : false;
+            if (!is_array($results)) {
+                return '<div class="calsys-notice" role="status">' . esc_html__('Registration results are unavailable or have expired. Please contact staff before trying again.', 'community-calendar-study-rooms') . '</div>';
+            }
+            $statuses = array(
+                'registration_complete' => __('Registered', 'community-calendar-study-rooms'),
+                'waitlist_joined' => __('Joined waitlist', 'community-calendar-study-rooms'),
+                'waitlist_joined_email_failed' => __('Joined waitlist; email failed', 'community-calendar-study-rooms'),
+                'event_full' => __('Full; not registered', 'community-calendar-study-rooms'),
+                'already_registered' => __('Already registered or waitlisted', 'community-calendar-study-rooms'),
+                'registration_disabled' => __('Registration disabled', 'community-calendar-study-rooms'),
+                'registration_closed' => __('Registration closed', 'community-calendar-study-rooms'),
+                'invalid_registration' => __('Not registered; event unavailable or questions changed', 'community-calendar-study-rooms'),
+            );
+            $html = '<div class="calsys-notice" role="status"><p>' . esc_html__('Registration results:', 'community-calendar-study-rooms') . '</p><ul>';
+            foreach ($results as $result) {
+                $title = $result['title'] !== '' ? $result['title'] : sprintf(__('Event #%d', 'community-calendar-study-rooms'), $result['id']);
+                if ($result['starts_at'] !== '') {
+                    $title .= ' — ' . mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $result['starts_at']);
+                }
+                $html .= '<li>' . esc_html($title) . ': ' . esc_html($statuses[$result['status']] ?? $statuses['invalid_registration']) . '</li>';
+            }
+            return $html . '</ul></div>';
+        }
         return '';
     }
     $message = $messages[$key];
@@ -229,6 +256,24 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
             : wp_date('F Y', $month->getTimestamp(), $timezone));
     $week_start = DateTimeImmutable::createFromFormat('!Y-m-d', '2024-01-07', $timezone);
     $week_start = $week_start->modify('+' . calsys_week_start_day() . ' days');
+    $list_start = $view === 'month' ? $month->setTime(0, 0, 0) : $grid_start;
+    $list_end = $view === 'month' ? $list_start->modify('+1 month') : $range_end;
+    $print_events = array();
+    if ($view !== 'day' && in_array($calendar_type, array('events', 'combined'), true)) {
+        foreach ($events as $event) {
+            if (($event->calendar_type ?? '') !== 'event') {
+                continue;
+            }
+            $start = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $event->starts_at, $timezone);
+            $end = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $event->ends_at, $timezone);
+            if ($start && $end && $start < $list_end && ($end > $list_start || ($end == $start && $start >= $list_start))) {
+                $print_events[] = array('event' => $event, 'start' => $start, 'end' => $end);
+            }
+        }
+        usort($print_events, function ($a, $b) {
+            return $a['start'] <=> $b['start'];
+        });
+    }
     ob_start();
     ?>
     <section class="calsys-calendar calsys-calendar-<?php echo esc_attr($calendar_type); ?><?php echo $enable_views ? ' calsys-public-calendar calsys-view-' . esc_attr($view) : ''; ?>" aria-label="<?php echo esc_attr($title); ?>">
@@ -243,8 +288,19 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
         <?php if (in_array($calendar_type, array('events', 'combined'), true)) :
             $selected_categories = calsys_selected_event_categories();
             $categories = calsys_event_categories();
-            $filter_url = remove_query_arg(array('calsys_notice', 'calsys_month', 'calsys_date', 'calsys_view', 'calsys_category'));
-            $clear_url = remove_query_arg(array('calsys_notice', 'calsys_category'));
+            $recurrence_filter = calsys_event_group_filter('calsys_recurring');
+            $series_filter = calsys_event_group_filter('calsys_series');
+            $filter_series = $wpdb->get_results(
+                "SELECT DISTINCT s.id, s.name FROM " . calsys_table('series') . " s
+                INNER JOIN " . calsys_table('events') . " e ON e.series_id = s.id
+                WHERE e.status = 'published' ORDER BY s.name, s.id"
+            );
+            if (!is_array($filter_series) || $wpdb->last_error) {
+                error_log('CommonsCal: unable to load series filter: ' . $wpdb->last_error);
+                $filter_series = false;
+            }
+            $filter_url = remove_query_arg(array('calsys_notice', 'calsys_month', 'calsys_date', 'calsys_view', 'calsys_category', 'calsys_recurring', 'calsys_series'));
+            $clear_url = remove_query_arg(array('calsys_notice', 'calsys_category', 'calsys_recurring', 'calsys_series'));
             $filter_query = array();
             parse_str((string) wp_parse_url($filter_url, PHP_URL_QUERY), $filter_query);
             ?>
@@ -267,9 +323,27 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
                         <?php endforeach; ?>
                     </div>
                 </fieldset>
+                <label><?php esc_html_e('Recurring events', 'community-calendar-study-rooms'); ?>
+                    <select name="calsys_recurring">
+                        <option value="all" <?php selected($recurrence_filter, 'all'); ?>><?php esc_html_e('All events', 'community-calendar-study-rooms'); ?></option>
+                        <option value="yes" <?php selected($recurrence_filter, 'yes'); ?>><?php esc_html_e('Recurring only', 'community-calendar-study-rooms'); ?></option>
+                        <option value="no" <?php selected($recurrence_filter, 'no'); ?>><?php esc_html_e('Not recurring', 'community-calendar-study-rooms'); ?></option>
+                    </select>
+                </label>
+                <label><?php esc_html_e('Series events', 'community-calendar-study-rooms'); ?>
+                    <select name="calsys_series">
+                        <option value="all" <?php selected($series_filter, 'all'); ?>><?php esc_html_e('All events', 'community-calendar-study-rooms'); ?></option>
+                        <option value="yes" <?php selected($series_filter, 'yes'); ?>><?php esc_html_e('In a series', 'community-calendar-study-rooms'); ?></option>
+                        <option value="no" <?php selected($series_filter, 'no'); ?>><?php esc_html_e('Not in a series', 'community-calendar-study-rooms'); ?></option>
+                        <?php if ($filter_series !== false) : foreach ($filter_series as $item) : ?>
+                            <option value="id_<?php echo esc_attr($item->id); ?>" <?php selected($series_filter, 'id_' . $item->id); ?>><?php echo esc_html($item->name); ?></option>
+                        <?php endforeach; endif; ?>
+                    </select>
+                </label>
+                <?php if ($filter_series === false) : ?><p role="status"><?php esc_html_e('Named series filters could not be loaded. Please contact staff.', 'community-calendar-study-rooms'); ?></p><?php endif; ?>
                 <div class="calsys-category-filter-actions">
                     <button type="submit"><?php esc_html_e('Apply filters', 'community-calendar-study-rooms'); ?></button>
-                    <?php if ($selected_categories) : ?><a href="<?php echo esc_url($clear_url); ?>"><?php esc_html_e('Clear filters', 'community-calendar-study-rooms'); ?></a><?php endif; ?>
+                    <?php if ($selected_categories || $recurrence_filter !== 'all' || $series_filter !== 'all') : ?><a href="<?php echo esc_url($clear_url); ?>"><?php esc_html_e('Clear filters', 'community-calendar-study-rooms'); ?></a><?php endif; ?>
                 </div>
                 <?php if ($enable_views) : ?>
                     <nav class="calsys-view-switcher" aria-label="<?php esc_attr_e('Calendar view', 'community-calendar-study-rooms'); ?>">
@@ -282,6 +356,33 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
                     </nav>
                 <?php endif; ?>
             </form>
+        <?php endif; ?>
+        <div class="calsys-print-actions">
+            <button type="button" data-calsys-print="calendar"><?php esc_html_e('Print calendar', 'community-calendar-study-rooms'); ?></button>
+            <?php if ($view !== 'day' && in_array($calendar_type, array('events', 'combined'), true)) : ?>
+                <button type="button" data-calsys-print="events"><?php esc_html_e('Print events list', 'community-calendar-study-rooms'); ?></button>
+            <?php endif; ?>
+        </div>
+        <?php if ($view !== 'day' && in_array($calendar_type, array('events', 'combined'), true)) : ?>
+            <div class="calsys-print-events" hidden>
+                <h1><?php esc_html_e('Events', 'community-calendar-study-rooms'); ?></h1>
+                <p class="calsys-print-period"><?php echo esc_html($period_label); ?></p>
+                <?php if (!$print_events) : ?>
+                    <p><?php esc_html_e('No events for this period.', 'community-calendar-study-rooms'); ?></p>
+                <?php endif; ?>
+                <?php foreach ($print_events as $entry) : $event = $entry['event']; ?>
+                    <article class="calsys-print-event">
+                        <h2><?php echo esc_html($event->title); ?></h2>
+                        <p><?php echo esc_html(wp_date(get_option('date_format') . ' ' . get_option('time_format'), $entry['start']->getTimestamp(), $timezone)); ?> &ndash; <?php echo esc_html(wp_date(get_option('date_format') . ' ' . get_option('time_format'), $entry['end']->getTimestamp(), $timezone)); ?></p>
+                        <?php if (!empty($event->category_label) && calsys_show_public_category_labels()) : ?>
+                            <p><?php echo esc_html($event->category_label); ?></p>
+                        <?php endif; ?>
+                        <?php if (!empty($event->description)) : ?>
+                            <p class="calsys-print-description"><?php echo esc_html(wp_strip_all_tags($event->description, true)); ?></p>
+                        <?php endif; ?>
+                    </article>
+                <?php endforeach; ?>
+            </div>
         <?php endif; ?>
         <div class="calsys-calendar-scroll">
             <table class="calsys-calendar-table" role="table">
@@ -364,6 +465,9 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
                                             <button class="calsys-entry-action" type="button" data-calsys-edit-event
                                                 data-event-id="<?php echo esc_attr($event->id); ?>"
                                                 data-recurrence-group="<?php echo esc_attr($event->recurrence_group ?? ''); ?>"
+                                                data-series-id="<?php echo esc_attr($event->series_id ?? 0); ?>"
+                                                data-register-all-recurrences="<?php echo esc_attr(!empty($event->register_all_recurrences) ? '1' : '0'); ?>"
+                                                data-staff-initials="<?php echo esc_attr($event->staff_initials ?? ''); ?>"
                                                 data-title="<?php echo esc_attr($event->title); ?>"
                                                 data-description="<?php echo esc_attr($event->description ?? ''); ?>"
                                                 data-image-id="<?php echo esc_attr($event->image_id ?? 0); ?>"
@@ -391,16 +495,15 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
                                                 data-end="<?php echo esc_attr(str_replace(' ', 'T', substr($event->ends_at, 0, 16))); ?>"
                                                 data-all-day="<?php echo esc_attr(!empty($event->all_day) ? '1' : '0'); ?>"><?php esc_html_e('Edit', 'community-calendar-study-rooms'); ?></button>
                                         <?php elseif (current_user_can('manage_calendar_system') && ($event->calendar_type ?? '') === 'room' && ($event->status ?? '') === 'pending') : ?>
-                                            <?php foreach (array('approve' => __('Approve', 'community-calendar-study-rooms'), 'deny' => __('Deny', 'community-calendar-study-rooms')) as $decision => $label) : ?>
                                                 <form class="calsys-entry-decision" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                                                     <?php wp_nonce_field('calsys_front_booking_decision_' . $event->id); ?>
                                                     <input type="hidden" name="action" value="calsys_booking_decision">
                                                     <input type="hidden" name="calsys_frontend" value="1">
                                                     <input type="hidden" name="booking_id" value="<?php echo esc_attr($event->id); ?>">
-                                                    <input type="hidden" name="decision" value="<?php echo esc_attr($decision); ?>">
-                                                    <button class="calsys-entry-action" type="submit"><?php echo esc_html($label); ?></button>
+                                                    <label><?php esc_html_e('Comment to requester (optional)', 'community-calendar-study-rooms'); ?><textarea name="decision_comment" rows="2" maxlength="4000"></textarea></label>
+                                                    <button class="calsys-entry-action" type="submit" name="decision" value="approve"><?php esc_html_e('Approve', 'community-calendar-study-rooms'); ?></button>
+                                                    <button class="calsys-entry-action" type="submit" name="decision" value="deny"><?php esc_html_e('Deny', 'community-calendar-study-rooms'); ?></button>
                                                 </form>
-                                            <?php endforeach; ?>
                                             <button class="calsys-entry-action" type="button" data-calsys-edit-room
                                                 data-booking-id="<?php echo esc_attr($event->id); ?>"
                                                 data-equipment="<?php echo esc_attr(wp_json_encode($equipment_by_entry['room:' . $event->id])); ?>"
@@ -466,6 +569,36 @@ function calsys_event_category_sql($column = 'e.category') {
     }
     $placeholders = implode(', ', array_fill(0, count($categories), '%s'));
     return $wpdb->prepare(" AND $column IN ($placeholders)", $categories);
+}
+
+/** Returns a validated recurring or named-series filter. */
+function calsys_event_group_filter($key) {
+    $value = isset($_GET[$key]) && is_string($_GET[$key]) ? wp_unslash($_GET[$key]) : 'all';
+    if ($key === 'calsys_series' && preg_match('/^id_[1-9][0-9]*$/', $value)) {
+        return $value;
+    }
+    return in_array($value, array('all', 'yes', 'no'), true) ? $value : 'all';
+}
+
+/** Filters recurrence and named series independently. */
+function calsys_event_group_filter_sql() {
+    global $wpdb;
+    $sql = '';
+    $recurring = calsys_event_group_filter('calsys_recurring');
+    $series = calsys_event_group_filter('calsys_series');
+    if ($recurring !== 'all') {
+        $sql .= $recurring === 'yes' ? " AND e.recurrence_group <> ''" : " AND e.recurrence_group = ''";
+    }
+    if ($series !== 'all') {
+        if ($series === 'yes') {
+            $sql .= ' AND e.series_id > 0';
+        } elseif ($series === 'no') {
+            $sql .= ' AND e.series_id = 0';
+        } else {
+            $sql .= $wpdb->prepare(' AND e.series_id = %d', (int) substr($series, 3));
+        }
+    }
+    return $sql;
 }
 
 /** Whether room-booking listings are hidden for the current visitor. */
@@ -537,10 +670,10 @@ function calsys_event_calendar_view($dialog_events = array(), $calendar_mode = '
     list($grid_start, $grid_end) = calsys_calendar_range($month, $view, $selected_date);
     $events = array();
     if (in_array($calendar_mode, array('events', 'rooms', 'combined'), true)) {
-        $category_sql = calsys_event_category_sql();
+        $category_sql = calsys_event_category_sql() . calsys_event_group_filter_sql();
         $events = $wpdb->get_results($wpdb->prepare(
             "SELECT e.id, e.title, e.description, e.starts_at, e.ends_at, e.capacity, e.status, e.category, e.registration_fields,
-            e.registration_enabled, e.registration_recipients, e.image_id, e.show_registration_counts, e.recurrence_group,
+            e.registration_enabled, e.registration_recipients, e.image_id, e.show_registration_counts, e.recurrence_group, e.staff_initials, e.series_id, e.register_all_recurrences,
             (SELECT b.room_id FROM " . calsys_table('bookings') . " b WHERE b.source_type = 'event' AND b.source_id = e.id ORDER BY b.id ASC LIMIT 1) AS room_id,
             0 AS all_day, 'event' AS calendar_type,
             (SELECT COUNT(*) FROM " . calsys_table('registrations') . " r WHERE r.event_id = e.id) AS registration_count
@@ -638,7 +771,7 @@ function calsys_upcoming_events_shortcode($attributes = array()) {
     $attributes = shortcode_atts(array('count' => 3), $attributes, 'calendar_upcoming_events');
     $count = absint($attributes['count']);
     $count = min(5, max(3, $count ?: 3));
-    $category_sql = calsys_event_category_sql();
+    $category_sql = calsys_event_category_sql() . calsys_event_group_filter_sql();
     $events = $wpdb->get_results($wpdb->prepare(
         "SELECT e.*, (SELECT COUNT(*) FROM " . calsys_table('registrations') . " r WHERE r.event_id = e.id) AS registration_count
         FROM " . calsys_table('events') . " e
@@ -726,9 +859,38 @@ function calsys_registration_form_fields($fields) {
 
 /** Renders event detail dialogs and registration forms for calendar events. */
 function calsys_render_event_registration_forms($events) {
+    global $wpdb;
     $registration_settings = calsys_get_settings()['event_registration'];
+    $series_ids = array();
+    foreach ($events as $event) {
+        if (!empty($event->series_id)) {
+            $series_ids[] = (int) $event->series_id;
+        }
+    }
+    $series_events = array();
+    $series_error = false;
+    if ($series_ids) {
+        $series_ids = array_values(array_unique($series_ids));
+        $placeholders = implode(', ', array_fill(0, count($series_ids), '%d'));
+        $related = $wpdb->get_results($wpdb->prepare(
+            "SELECT e.id, e.title, e.starts_at, e.registration_enabled, e.registration_fields, e.series_id, s.name AS series_name
+            FROM " . calsys_table('events') . " e INNER JOIN " . calsys_table('series') . " s ON s.id = e.series_id
+            WHERE e.status = 'published' AND e.series_id IN ($placeholders) ORDER BY e.starts_at, e.id",
+            $series_ids
+        ));
+        if (!is_array($related) || $wpdb->last_error) {
+            error_log('CommonsCal: unable to load series events: ' . $wpdb->last_error);
+            $series_error = true;
+        } else {
+            foreach ($related as $related_event) {
+                $series_events[(int) $related_event->series_id][] = $related_event;
+            }
+        }
+    }
     ob_start();
     foreach ($events as $event) {
+        $related = $series_events[(int) ($event->series_id ?? 0)] ?? array();
+        $event_fields = calsys_decode_registration_fields($event->registration_fields ?? '');
         $capacity = calsys_event_capacity($event->capacity);
         $full = $capacity > 0 && (int) $event->registration_count >= $capacity;
         $registration_available = !empty($event->registration_enabled) && !empty($registration_settings['enabled']);
@@ -742,6 +904,15 @@ function calsys_render_event_registration_forms($events) {
         }
         if ($event->description !== '') {
             echo '<div class="calsys-event-description">' . wpautop(wp_kses_post($event->description)) . '</div>';
+        }
+        if ($series_error && !empty($event->series_id)) {
+            echo '<p>' . esc_html__('Series events could not be loaded. Please contact staff.', 'community-calendar-study-rooms') . '</p>';
+        } elseif ($related) {
+            echo '<details class="calsys-series-events"><summary>' . esc_html(sprintf(__('All events in %s', 'community-calendar-study-rooms'), $related[0]->series_name)) . '</summary><ul>';
+            foreach ($related as $related_event) {
+                echo '<li>' . esc_html($related_event->title) . ' &mdash; ' . esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $related_event->starts_at)) . '</li>';
+            }
+            echo '</ul></details>';
         }
         if ($registration_settings['form_intro'] !== '') {
             echo '<p class="calsys-registration-intro">' . esc_html($registration_settings['form_intro']) . '</p>';
@@ -767,7 +938,29 @@ function calsys_render_event_registration_forms($events) {
             }
             echo '<div class="calsys-form-grid"><p><label>' . esc_html($registration_settings['name_label']) . '<input name="name" type="text" autocomplete="name" maxlength="200" required></label></p>';
             echo '<p><label>' . esc_html($registration_settings['email_label']) . '<input name="email" type="email" autocomplete="email" maxlength="200" required></label></p></div>';
-            echo calsys_registration_form_fields(calsys_decode_registration_fields($event->registration_fields));
+            echo calsys_registration_form_fields($event_fields);
+            $choices = array();
+            foreach ($related as $related_event) {
+                if ((int) $related_event->id !== (int) $event->id && !empty($related_event->registration_enabled) &&
+                    calsys_event_registration_is_open($related_event->starts_at) &&
+                    calsys_decode_registration_fields($related_event->registration_fields ?? '') === $event_fields) {
+                    $choices[] = $related_event;
+                }
+            }
+            if ($choices) {
+                echo '<details class="calsys-series-selection"><summary>' . esc_html__('Register for other events in this series', 'community-calendar-study-rooms') . '</summary>';
+                echo '<p>' . esc_html__('Only open events with matching registration questions are shown. Full or unavailable events will be reported after submission.', 'community-calendar-study-rooms') . '</p>';
+                echo '<label class="calsys-checkbox-label"><input type="checkbox" name="series_select_all" value="1" data-calsys-select-series-events> ' . esc_html__('Select all', 'community-calendar-study-rooms') . '</label>';
+                foreach ($choices as $choice) {
+                    echo '<label class="calsys-checkbox-label"><input type="checkbox" name="series_events[]" value="' . esc_attr($choice->id) . '"> ' .
+                        esc_html($choice->title) . ' &mdash; ' . esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $choice->starts_at)) . '</label>';
+                }
+                echo '</details>';
+            }
+            if (!empty($event->register_all_recurrences) && !empty($event->recurrence_group)) {
+                echo '<p><label class="calsys-checkbox-label"><input name="all_recurrences" type="checkbox" value="1"> ' .
+                    esc_html__('Also register for all upcoming recurring events', 'community-calendar-study-rooms') . '</label></p>';
+            }
             if (calsys_get_settings()['notifications']['email_event_reminders']) {
                 echo '<p class="calsys-form-wide"><label class="calsys-checkbox-label"><input name="reminder_opt_in" type="checkbox" value="1"> ' .
                     esc_html($registration_settings['reminder_label']) . '</label></p>';
@@ -824,7 +1017,7 @@ add_shortcode('calendar_staff_calendar', 'calsys_staff_calendar_shortcode');
 /** WordPress shortcode callback that renders the upcoming event list. */
 function calsys_events_shortcode() {
     global $wpdb;
-    $category_sql = calsys_event_category_sql();
+    $category_sql = calsys_event_category_sql() . calsys_event_group_filter_sql();
     $events = $wpdb->get_results($wpdb->prepare(
         "SELECT e.*, (SELECT COUNT(*) FROM " . calsys_table('registrations') . " r WHERE r.event_id = e.id) AS registration_count
         FROM " . calsys_table('events') . " e

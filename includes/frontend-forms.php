@@ -23,6 +23,12 @@ function calsys_staff_access_link($action = 'room') {
     if ($categories) {
         $return_url = add_query_arg('calsys_category', $categories, $return_url);
     }
+    foreach (array('calsys_recurring', 'calsys_series') as $filter) {
+        $value = calsys_event_group_filter($filter);
+        if ($value !== 'all') {
+            $return_url = add_query_arg($filter, $value, $return_url);
+        }
+    }
 
     if (!is_user_logged_in()) {
         return '<nav class="calsys-access-links" aria-label="' . esc_attr__('Staff access', 'community-calendar-study-rooms') . '">' .
@@ -60,6 +66,27 @@ function calsys_event_count_visibility_field($show = true) {
     return ob_get_clean();
 }
 
+/** Renders the named-series selector for staff event forms. */
+function calsys_event_series_field($selected_id = 0) {
+    global $wpdb;
+    $series = $wpdb->get_results("SELECT id, name FROM " . calsys_table('series') . " ORDER BY name ASC, id ASC");
+    if (!is_array($series)) {
+        error_log('CommonsCal: unable to load event series: ' . $wpdb->last_error);
+        wp_die(esc_html__('Event series could not be loaded. Please check the site error log.', 'community-calendar-study-rooms'));
+    }
+    ob_start();
+    ?>
+    <p class="calsys-form-wide"><label><?php esc_html_e('Event series', 'community-calendar-study-rooms'); ?>
+        <select name="series_id">
+            <option value="0"><?php esc_html_e('No series', 'community-calendar-study-rooms'); ?></option>
+            <option value="new"><?php esc_html_e('Create a new series', 'community-calendar-study-rooms'); ?></option>
+            <?php foreach ($series as $item) : ?><option value="<?php echo esc_attr($item->id); ?>" <?php selected((int) $item->id, (int) $selected_id); ?>><?php echo esc_html($item->name); ?></option><?php endforeach; ?>
+        </select></label></p>
+    <p class="calsys-form-wide"><label><?php esc_html_e('New series name (only when creating a series)', 'community-calendar-study-rooms'); ?><input name="series_name" type="text" maxlength="200"></label></p>
+    <?php
+    return ob_get_clean();
+}
+
 /** Renders the staff-only event creation and editing dialog for public calendars. */
 function calsys_front_event_form() {
     if (!current_user_can('manage_calendar_system')) {
@@ -87,17 +114,19 @@ function calsys_front_event_form() {
                 <input type="hidden" name="event_id" value="0">
                 <div class="calsys-form-grid">
                     <p class="calsys-form-wide"><label><?php esc_html_e('Event title', 'community-calendar-study-rooms'); ?><input name="title" type="text" maxlength="200" required></label></p>
+                    <p class="calsys-form-wide"><label><?php esc_html_e('Your initials', 'community-calendar-study-rooms'); ?><input name="staff_initials" type="text" maxlength="10" required></label><span data-calsys-saved-initials></span></p>
                     <p class="calsys-form-wide"><label><?php esc_html_e('Description', 'community-calendar-study-rooms'); ?><textarea name="description" rows="3"></textarea></label></p>
                     <div class="calsys-form-wide"><?php echo calsys_event_image_field(); ?></div>
                     <p><label><?php esc_html_e('Starts', 'community-calendar-study-rooms'); ?><input name="starts_at" type="datetime-local" required></label></p>
                     <p><label><?php esc_html_e('Ends', 'community-calendar-study-rooms'); ?><input name="ends_at" type="datetime-local" required></label></p>
                     <p class="calsys-form-wide" data-calsys-series-scope hidden><label><?php esc_html_e('Apply changes to', 'community-calendar-study-rooms'); ?>
-                        <select name="event_scope"><option value="one"><?php esc_html_e('This event only', 'community-calendar-study-rooms'); ?></option><option value="future"><?php esc_html_e('This and future events', 'community-calendar-study-rooms'); ?></option><option value="all"><?php esc_html_e('All events in this series', 'community-calendar-study-rooms'); ?></option></select></label>
+                        <select name="event_scope"><option value="one"><?php esc_html_e('This event only', 'community-calendar-study-rooms'); ?></option><option value="future"><?php esc_html_e('This and future recurring events', 'community-calendar-study-rooms'); ?></option><option value="all"><?php esc_html_e('All recurring events', 'community-calendar-study-rooms'); ?></option></select></label>
                         <span class="description"><?php esc_html_e('All shown fields, including room and equipment, replace the values for selected events. Dates shift by the same amount; registrations stay with each event.', 'community-calendar-study-rooms'); ?></span></p>
                     <p><label><?php esc_html_e('Registration limit (0 means unlimited)', 'community-calendar-study-rooms'); ?><input name="capacity" type="number" min="0" step="1" value="0"></label></p>
                     <?php echo calsys_event_count_visibility_field(); ?>
                     <p><label><?php esc_html_e('Visibility', 'community-calendar-study-rooms'); ?><select name="status"><option value="published"><?php esc_html_e('Published', 'community-calendar-study-rooms'); ?></option><option value="draft"><?php esc_html_e('Draft', 'community-calendar-study-rooms'); ?></option></select></label></p>
                     <p><label><?php esc_html_e('Category', 'community-calendar-study-rooms'); ?><select name="category"><?php foreach ($categories as $key => $label) : ?><option value="<?php echo esc_attr($key); ?>" <?php selected($key, 'adult'); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select></label></p>
+                    <?php echo calsys_event_series_field(); ?>
                     <p class="calsys-form-wide"><label><?php esc_html_e('Room (optional)', 'community-calendar-study-rooms'); ?>
                         <select name="room_id" data-calsys-room-select>
                             <option value=""><?php esc_html_e('No room reservation', 'community-calendar-study-rooms'); ?></option>
@@ -111,6 +140,7 @@ function calsys_front_event_form() {
                         $registration_defaults['default_fields']
                     ); ?></div>
                     <p class="calsys-form-wide" data-calsys-recurrence-toggle-row><label class="calsys-checkbox-label"><input name="recurring" type="checkbox" value="1" data-calsys-toggle-recurrence> <?php esc_html_e('Repeat this event', 'community-calendar-study-rooms'); ?></label></p>
+                    <p class="calsys-form-wide" data-calsys-register-recurrences hidden><label class="calsys-checkbox-label"><input name="register_all_recurrences" type="checkbox" value="1"> <?php esc_html_e('Let attendees register for all recurring events', 'community-calendar-study-rooms'); ?></label></p>
                     <p data-calsys-recurrence-field hidden><label><?php esc_html_e('Repeat', 'community-calendar-study-rooms'); ?><select name="recurrence_frequency"><option value="daily"><?php esc_html_e('Daily', 'community-calendar-study-rooms'); ?></option><option value="weekly"><?php esc_html_e('Weekly', 'community-calendar-study-rooms'); ?></option><option value="monthly"><?php esc_html_e('Monthly', 'community-calendar-study-rooms'); ?></option></select></label></p>
                     <p data-calsys-recurrence-field hidden><label><?php esc_html_e('Stop repeating by', 'community-calendar-study-rooms'); ?><select name="recurrence_end_type" data-calsys-recurrence-end><option value="count"><?php esc_html_e('Number of occurrences', 'community-calendar-study-rooms'); ?></option><option value="date"><?php esc_html_e('End date', 'community-calendar-study-rooms'); ?></option></select></label></p>
                     <p data-calsys-recurrence-field hidden data-calsys-occurrences><label><?php esc_html_e('Occurrences (maximum 100)', 'community-calendar-study-rooms'); ?><input name="recurrence_count" type="number" min="2" max="100" value="10"></label></p>
@@ -291,9 +321,11 @@ function calsys_front_room_form() {
                     <div class="calsys-form-wide" data-calsys-public-event-fields hidden>
                         <div class="calsys-form-grid">
                             <p class="calsys-form-wide"><label><?php esc_html_e('Event title', 'community-calendar-study-rooms'); ?><input name="title" type="text" maxlength="200" required></label></p>
+                            <p class="calsys-form-wide"><label><?php esc_html_e('Your initials', 'community-calendar-study-rooms'); ?><input name="staff_initials" type="text" maxlength="10" required></label></p>
                             <p class="calsys-form-wide"><label><?php esc_html_e('Description', 'community-calendar-study-rooms'); ?><textarea name="description" rows="3"></textarea></label></p>
                             <div class="calsys-form-wide"><?php echo calsys_event_image_field(); ?></div>
                             <p><label><?php esc_html_e('Category', 'community-calendar-study-rooms'); ?><select name="category"><?php foreach (calsys_event_categories() as $key => $label) : ?><option value="<?php echo esc_attr($key); ?>" <?php selected($key, 'adult'); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select></label></p>
+                            <?php echo calsys_event_series_field(); ?>
                             <p><label><?php esc_html_e('Registration limit (0 means unlimited)', 'community-calendar-study-rooms'); ?><input name="capacity" type="number" min="0" step="1" value="0"></label></p>
                             <?php echo calsys_event_count_visibility_field(); ?>
                             <input name="status" type="hidden" value="published">
@@ -302,6 +334,7 @@ function calsys_front_room_form() {
                                 calsys_get_settings()['event_registration']['default_fields']
                             ); ?></div>
                             <p class="calsys-form-wide"><label class="calsys-checkbox-label"><input name="recurring" type="checkbox" value="1" data-calsys-toggle-recurrence> <?php esc_html_e('Repeat this event', 'community-calendar-study-rooms'); ?></label></p>
+                            <p class="calsys-form-wide" data-calsys-register-recurrences hidden><label class="calsys-checkbox-label"><input name="register_all_recurrences" type="checkbox" value="1"> <?php esc_html_e('Let attendees register for all recurring events', 'community-calendar-study-rooms'); ?></label></p>
                             <p class="calsys-form-wide" data-calsys-recurrence-field hidden><?php esc_html_e('A double-booking acknowledgment applies only to the first occurrence. Later conflicting room reservations are skipped.', 'community-calendar-study-rooms'); ?></p>
                             <p data-calsys-recurrence-field hidden><label><?php esc_html_e('Repeat', 'community-calendar-study-rooms'); ?><select name="recurrence_frequency"><option value="daily"><?php esc_html_e('Daily', 'community-calendar-study-rooms'); ?></option><option value="weekly"><?php esc_html_e('Weekly', 'community-calendar-study-rooms'); ?></option><option value="monthly"><?php esc_html_e('Monthly', 'community-calendar-study-rooms'); ?></option></select></label></p>
                             <p data-calsys-recurrence-field hidden><label><?php esc_html_e('Stop repeating by', 'community-calendar-study-rooms'); ?><select name="recurrence_end_type" data-calsys-recurrence-end><option value="count"><?php esc_html_e('Number of occurrences', 'community-calendar-study-rooms'); ?></option><option value="date"><?php esc_html_e('End date', 'community-calendar-study-rooms'); ?></option></select></label></p>

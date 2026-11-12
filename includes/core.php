@@ -41,10 +41,21 @@ function calsys_activate() {
         registration_enabled tinyint(1) NOT NULL DEFAULT 0,
         registration_recipients longtext NOT NULL,
         recurrence_group varchar(36) NOT NULL DEFAULT '',
+        series_id bigint(20) unsigned NOT NULL DEFAULT 0,
+        register_all_recurrences tinyint(1) NOT NULL DEFAULT 0,
+        staff_initials varchar(40) NOT NULL DEFAULT '',
         status varchar(20) NOT NULL DEFAULT 'draft',
         created_at datetime NOT NULL,
         PRIMARY KEY  (id),
-        KEY status_starts_at (status, starts_at)
+        KEY status_starts_at (status, starts_at),
+        KEY series_id (series_id),
+        KEY recurrence_group (recurrence_group)
+    ) $collate;");
+
+    dbDelta("CREATE TABLE " . calsys_table('series') . " (
+        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+        name varchar(200) NOT NULL,
+        PRIMARY KEY  (id)
     ) $collate;");
 
     dbDelta("CREATE TABLE " . calsys_table('registrations') . " (
@@ -136,7 +147,7 @@ function calsys_activate() {
         KEY availability (equipment_id, status, starts_at, ends_at)
     ) $collate;");
 
-    foreach (array('equipment', 'equipment_reservations', 'waitlist') as $table_name) {
+    foreach (array('equipment', 'equipment_reservations', 'waitlist', 'series') as $table_name) {
         $table = calsys_table($table_name);
         $found = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table)));
         if ($found !== $table || $wpdb->last_error) {
@@ -168,6 +179,18 @@ function calsys_activate() {
     if ($previous_db_version < 10 && !$wpdb->get_var("SHOW COLUMNS FROM " . calsys_table('rooms') . " LIKE 'color'")) {
         error_log('CommonsCal: unable to add room colors: ' . $wpdb->last_error);
         return;
+    }
+    if ($previous_db_version < 12 && !$wpdb->get_var("SHOW COLUMNS FROM " . calsys_table('events') . " LIKE 'staff_initials'")) {
+        error_log('CommonsCal: unable to add event staff initials: ' . $wpdb->last_error);
+        return;
+    }
+    if ($previous_db_version < 13) {
+        foreach (array('series_id', 'register_all_recurrences') as $column) {
+            if (!$wpdb->get_var("SHOW COLUMNS FROM " . calsys_table('events') . " LIKE '$column'")) {
+                error_log('CommonsCal: unable to add event series fields: ' . $wpdb->last_error);
+                return;
+            }
+        }
     }
 
     calsys_grant_role_capabilities();
@@ -239,6 +262,7 @@ function calsys_enqueue_public_script() {
         'saveEvent' => __('Save event', 'community-calendar-study-rooms'),
         'saveStaffEntry' => __('Save staff entry', 'community-calendar-study-rooms'),
         'saveChanges' => __('Save changes', 'community-calendar-study-rooms'),
+        'lastSavedBy' => __('Last saved by: %s', 'community-calendar-study-rooms'),
         'confirmDeleteEvent' => __('Delete this event and its registrations and linked room reservation? This cannot be undone.', 'community-calendar-study-rooms'),
         'confirmDeleteStaffEntry' => __('Delete this staff entry and its linked room reservation?', 'community-calendar-study-rooms'),
         'confirmDeleteRoomBooking' => __('Delete this room booking?', 'community-calendar-study-rooms'),
@@ -252,6 +276,8 @@ function calsys_enqueue_public_script() {
         'useEventImage' => __('Use this image', 'community-calendar-study-rooms'),
         'removeEventImage' => __('Remove image', 'community-calendar-study-rooms'),
         'invalidEventImage' => __('Please choose an image file.', 'community-calendar-study-rooms'),
+        'printUnavailable' => __('The printable view could not be loaded.', 'community-calendar-study-rooms'),
+        'printBlocked' => __('Please allow pop-ups to print the calendar.', 'community-calendar-study-rooms'),
     ));
 }
 add_action('wp_enqueue_scripts', 'calsys_enqueue_public_script');
