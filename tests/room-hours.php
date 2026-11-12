@@ -29,6 +29,12 @@ $holidays[] = array('date' => '2028-12-25', 'annual' => '1', 'mode' => 'closed')
 expect(calsys_normalize_room_schedule($weekly, $holidays) === false, 'Duplicate yearly exceptions must be rejected');
 $weekly[1] = array('mode' => 'open', 'open' => '17:00', 'close' => '09:00');
 expect(calsys_normalize_room_schedule($weekly, array()) === false, 'Overnight or reversed hours must be rejected');
+$weekly[1] = array('mode' => 'unrestricted', 'open' => '09:00', 'close' => '17:00');
+expect(calsys_normalize_room_schedule($weekly, array(), true) === false, 'Submitted unrestricted hours must not silently discard entered times');
+expect(calsys_normalize_room_schedule($weekly, array()) !== false, 'Loading existing schedules must remain compatible with unused times');
+$weekly[1] = array('mode' => 'open', 'open' => '09:00', 'close' => '17:00');
+expect(calsys_normalize_room_schedule($weekly, array(array('date' => '2026-12-25', 'mode' => 'closed', 'open' => '10:00')), true) === false, 'Submitted closed holiday must not silently discard entered times');
+expect(calsys_normalize_room_schedule($weekly, array(array('date' => '2026-12-25', 'mode' => 'closed')), true) !== false, 'Closed days without times must remain valid');
 expect(!calsys_room_duration_exceeds_limit('09:00', '11:00', 120), 'Bookings at the duration limit must be allowed');
 expect(calsys_room_duration_exceeds_limit('09:00', '11:15', 120), 'Bookings over the duration limit must be rejected');
 expect(!calsys_room_duration_exceeds_limit('09:00', '17:00', 0), 'Zero must leave booking duration unrestricted');

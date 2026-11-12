@@ -4,12 +4,15 @@ if (!defined('ABSPATH')) {
 }
 
 /** Validates one opening-hours interval or closed/unrestricted day. */
-function calsys_normalize_hours($hours, $allow_unrestricted = true) {
+function calsys_normalize_hours($hours, $allow_unrestricted = true, $reject_unused_times = false) {
     if (!is_array($hours) || !isset($hours['mode']) || !is_string($hours['mode']) ||
         !in_array($hours['mode'], $allow_unrestricted ? array('open', 'closed', 'unrestricted') : array('open', 'closed'), true)) {
         return false;
     }
     if ($hours['mode'] !== 'open') {
+        if ($reject_unused_times && (($hours['open'] ?? '') !== '' || ($hours['close'] ?? '') !== '')) {
+            return false;
+        }
         return array('mode' => $hours['mode'], 'open' => '', 'close' => '');
     }
     $open = $hours['open'] ?? '';
@@ -23,13 +26,13 @@ function calsys_normalize_hours($hours, $allow_unrestricted = true) {
 }
 
 /** Validates weekly hours and dated or annually recurring exceptions. */
-function calsys_normalize_room_schedule($weekly, $holidays) {
+function calsys_normalize_room_schedule($weekly, $holidays, $reject_unused_times = false) {
     if (!is_array($weekly) || count($weekly) !== 7 || !is_array($holidays) || count($holidays) > 100) {
         return false;
     }
     $days = array();
     for ($day = 0; $day < 7; $day++) {
-        $hours = calsys_normalize_hours($weekly[$day] ?? null);
+        $hours = calsys_normalize_hours($weekly[$day] ?? null, true, $reject_unused_times);
         if ($hours === false) {
             return false;
         }
@@ -44,7 +47,7 @@ function calsys_normalize_room_schedule($weekly, $holidays) {
         $date = $holiday['date'];
         $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date, wp_timezone());
         $errors = DateTimeImmutable::getLastErrors();
-        $hours = calsys_normalize_hours($holiday, false);
+        $hours = calsys_normalize_hours($holiday, false, $reject_unused_times);
         if (!$parsed || ($errors && ($errors['warning_count'] || $errors['error_count'])) ||
             $parsed->format('Y-m-d') !== $date || $hours === false ||
             (isset($holiday['annual']) && !in_array($holiday['annual'], array(0, 1, '0', '1'), true))) {

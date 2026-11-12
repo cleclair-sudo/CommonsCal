@@ -312,8 +312,8 @@ function calsys_admin_settings_page() {
                         <p class="description"><?php esc_html_e('When unchecked, valid public room requests are confirmed immediately.', 'community-calendar-study-rooms'); ?></p></td></tr>
             </tbody></table>
             <h3><?php esc_html_e('Weekly opening hours', 'community-calendar-study-rooms'); ?></h3>
-            <p class="description"><?php esc_html_e('Set each day to unrestricted, closed, or open during specific hours. Public room requests must fit within these hours.', 'community-calendar-study-rooms'); ?></p>
-            <table class="widefat striped"><thead><tr><th><?php esc_html_e('Day', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Availability', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Opening and closing times', 'community-calendar-study-rooms'); ?></th></tr></thead><tbody>
+            <p class="description"><?php esc_html_e('Choose Open and enter both times for specific hours. Choose Unrestricted or Closed for days without specific hours. Public room requests must fit within these hours.', 'community-calendar-study-rooms'); ?></p>
+            <table class="widefat striped" id="calsys-weekly-hours"><thead><tr><th><?php esc_html_e('Day', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Availability', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Opening and closing times', 'community-calendar-study-rooms'); ?></th></tr></thead><tbody>
                 <?php foreach (array(__('Sunday', 'community-calendar-study-rooms'), __('Monday', 'community-calendar-study-rooms'), __('Tuesday', 'community-calendar-study-rooms'), __('Wednesday', 'community-calendar-study-rooms'), __('Thursday', 'community-calendar-study-rooms'), __('Friday', 'community-calendar-study-rooms'), __('Saturday', 'community-calendar-study-rooms')) as $day => $day_label) : $hours = $settings['booking_rules']['weekly_hours'][$day]; ?>
                 <tr><th scope="row"><?php echo esc_html($day_label); ?></th><td><select name="weekly_hours[<?php echo esc_attr($day); ?>][mode]" aria-label="<?php echo esc_attr(sprintf(__('%s availability', 'community-calendar-study-rooms'), $day_label)); ?>">
                     <option value="unrestricted" <?php selected($hours['mode'], 'unrestricted'); ?>><?php esc_html_e('Unrestricted', 'community-calendar-study-rooms'); ?></option>
@@ -587,10 +587,11 @@ function calsys_save_settings() {
     if (isset($_POST['room_schedule_present'])) {
         $schedule = calsys_normalize_room_schedule(
             wp_unslash($_POST['weekly_hours'] ?? null),
-            wp_unslash($_POST['holiday_hours'] ?? array())
+            wp_unslash($_POST['holiday_hours'] ?? array()),
+            true
         );
         if ($_POST['room_schedule_present'] !== '1' || $schedule === false) {
-            calsys_admin_redirect('calsys-settings', 'settings_invalid');
+            calsys_admin_redirect('calsys-settings', 'settings_invalid_hours');
         }
     } else {
         $schedule = array('weekly' => $old_settings['booking_rules']['weekly_hours'], 'holidays' => $old_settings['booking_rules']['holiday_hours']);
@@ -827,6 +828,7 @@ function calsys_admin_notice() {
         'equipment_conflict' => __('The requested equipment is unavailable for that time or quantity.', 'community-calendar-study-rooms'),
         'settings_saved' => __('Calendar settings saved.', 'community-calendar-study-rooms'),
         'settings_saved_types_in_use' => __('Settings saved. Booking types used by existing entries were kept.', 'community-calendar-study-rooms'),
+        'settings_invalid_hours' => __('Settings were not saved. Choose Open or Custom hours and enter valid opening and closing times, or clear the times for closed and unrestricted days. Check special dates for duplicates.', 'community-calendar-study-rooms'),
         'settings_invalid' => __('Settings were not saved. Check the booking limits and hours, registration capacity and cutoff, email address, colors, booking types, and event categories.', 'community-calendar-study-rooms'),
     );
     $key = sanitize_key(wp_unslash($_GET['calsys_notice']));
