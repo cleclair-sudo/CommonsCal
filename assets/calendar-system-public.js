@@ -131,8 +131,6 @@
             var messages = [];
             if (hours.mode === 'closed') {
                 messages.push(message.dataset.closed);
-            } else if (hours.mode === 'open') {
-                messages.push(message.dataset.hours.replace('%1$s', hours.open).replace('%2$s', hours.close));
             }
             if (form.dataset.staffBooking === '1' && start.value && end.value &&
                 (hours.mode === 'closed' || (hours.mode === 'open' && (start.value < hours.open || end.value > hours.close)))) {

@@ -211,11 +211,10 @@ function calsys_room_availability_attributes($staff) {
         '" data-staff-booking="' . ($staff ? '1' : '0') . '"';
 }
 
-/** Renders the live room-availability and opening-hours messages. */
+/** Renders the live room-availability messages. */
 function calsys_room_availability_messages($staff = false) {
     $html = '<div class="calsys-room-availability calsys-form-wide" aria-live="polite" data-calsys-availability ' .
         'data-closed="' . esc_attr__('The room is closed on this date.', 'community-calendar-study-rooms') . '" ' .
-        'data-hours="' . esc_attr__('Open hours: %1$s to %2$s.', 'community-calendar-study-rooms') . '" ' .
         'data-outside="' . esc_attr__('This booking is outside opening hours. Staff can still book it.', 'community-calendar-study-rooms') . '" ' .
         'data-conflict="' . esc_attr($staff
             ? __('This room is already requested or booked for that time. Choose another time or acknowledge the double booking below.', 'community-calendar-study-rooms')

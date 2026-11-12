@@ -162,6 +162,9 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
     $timezone = wp_timezone();
     $has_active_rooms = !in_array($calendar_type, array('rooms', 'combined'), true) ||
         (bool) $wpdb->get_var("SELECT id FROM " . calsys_table('rooms') . " WHERE active = 1 LIMIT 1");
+    $staff_access = current_user_can('manage_calendar_system');
+    $room_rules = !$staff_access && $has_active_rooms && in_array($calendar_type, array('rooms', 'combined'), true)
+        ? calsys_get_settings()['booking_rules'] : null;
     $selected_date = $selected_date ?? $month;
     list($grid_start, $range_end) = calsys_calendar_range($month, $view, $selected_date);
     $grid_end = $range_end->modify('-1 second');
@@ -301,11 +304,17 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
                         if ($date_key === current_time('Y-m-d')) {
                             $classes[] = 'is-today';
                         }
+                        $show_room_action = in_array($calendar_type, array('rooms', 'combined'), true) &&
+                            $has_active_rooms && $date_key >= current_time('Y-m-d');
+                        if ($show_room_action && !$staff_access) {
+                            $hours = calsys_room_hours_for_date($date_key, $room_rules);
+                            $show_room_action = $hours !== false && $hours['mode'] !== 'closed';
+                        }
                         ?>
                         <td role="cell" class="<?php echo esc_attr(implode(' ', $classes)); ?>">
                             <time class="calsys-calendar-date" datetime="<?php echo esc_attr($date_key); ?>"><span class="calsys-date-compact"><?php echo esc_html($date->format('j')); ?></span><span class="calsys-date-mobile"><?php echo esc_html(wp_date('l, M j', $date->getTimestamp(), $timezone)); ?></span></time>
-                            <?php if (in_array($calendar_type, array('rooms', 'combined'), true) && $has_active_rooms && $date_key >= current_time('Y-m-d')) : ?>
-                                <button class="calsys-day-action" type="button" data-calsys-add-room data-date="<?php echo esc_attr($date_key); ?>"><?php echo esc_html(current_user_can('manage_calendar_system') ? __('Add', 'community-calendar-study-rooms') : __('Request', 'community-calendar-study-rooms')); ?></button>
+                            <?php if ($show_room_action) : ?>
+                                <button class="calsys-day-action" type="button" data-calsys-add-room data-date="<?php echo esc_attr($date_key); ?>"><?php echo esc_html($staff_access ? __('Add', 'community-calendar-study-rooms') : __('Request', 'community-calendar-study-rooms')); ?></button>
                             <?php endif; ?>
                             <?php if ($calendar_type === 'staff' && current_user_can('manage_calendar_system')) : ?>
                                 <button class="calsys-day-action" type="button" data-calsys-add-staff data-date="<?php echo esc_attr($date_key); ?>"><?php esc_html_e('Add', 'community-calendar-study-rooms'); ?></button>

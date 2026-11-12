@@ -12,6 +12,7 @@ function esc_html__($text) { return esc_html($text); }
 function esc_html_e($text) { echo esc_html($text); }
 function esc_html($text) { return htmlspecialchars($text, ENT_QUOTES, 'UTF-8'); }
 function esc_attr($text) { return esc_html($text); }
+function esc_attr__($text) { return esc_attr($text); }
 function esc_textarea($text) { return esc_html($text); }
 function selected($value, $expected) { if ($value === $expected) { echo 'selected'; } }
 function checked($value) { if ($value) { echo 'checked'; } }
@@ -26,6 +27,12 @@ function expect($condition, $message) {
         fwrite(STDERR, $message . "\n");
         exit(1);
     }
+}
+
+foreach (array(false, true) as $staff_form) {
+    $availability = calsys_room_availability_messages($staff_form);
+    expect(strpos($availability, 'Open hours:') === false && strpos($availability, 'data-hours=') === false, 'Availability must not display an open-hours message');
+    expect(strpos($availability, 'data-closed=') !== false && strpos($availability, 'data-conflict=') !== false, 'Availability warnings must remain available');
 }
 
 foreach (array('text', 'textarea', 'email', 'phone', 'select', 'checkbox') as $type) {
