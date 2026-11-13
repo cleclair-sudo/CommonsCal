@@ -23,6 +23,10 @@ function calsys_staff_access_link($action = 'room') {
     if ($categories) {
         $return_url = add_query_arg('calsys_category', $categories, $return_url);
     }
+    $staff_types = calsys_selected_staff_types();
+    if ($staff_types) {
+        $return_url = add_query_arg('calsys_staff_type', $staff_types, $return_url);
+    }
     foreach (array('calsys_recurring', 'calsys_series') as $filter) {
         $value = calsys_event_group_filter($filter);
         if ($value !== 'all') {

@@ -306,14 +306,8 @@ function calsys_event_image_field($image_id = 0) {
     return ob_get_clean();
 }
 
-/** Schedules the recurring job that sends opted-in event reminders. */
+/** Schedules the hourly reminder and waitlist reconciliation job. */
 function calsys_schedule_reminder_cron() {
-    if (!calsys_get_settings()['notifications']['email_event_reminders']) {
-        if (wp_next_scheduled('calsys_send_due_event_reminders')) {
-            wp_clear_scheduled_hook('calsys_send_due_event_reminders');
-        }
-        return;
-    }
     if (wp_next_scheduled('calsys_send_due_event_reminders')) {
         return;
     }
@@ -323,6 +317,64 @@ function calsys_schedule_reminder_cron() {
     } elseif (!$scheduled) {
         error_log('CommonsCal: unable to schedule event reminders.');
     }
+}
+
+/** Lists notification types and the additional placeholders available in each. */
+function calsys_email_template_types() {
+    return array(
+        'room_request_staff' => array(__('New room request for staff', 'community-calendar-study-rooms'), array('name', 'room', 'date', 'start', 'end')),
+        'room_request_received' => array(__('Room request received', 'community-calendar-study-rooms'), array('name', 'room', 'date', 'start', 'end')),
+        'room_booking_confirmed' => array(__('Room booking confirmed', 'community-calendar-study-rooms'), array('name', 'room', 'date', 'start', 'end')),
+        'room_approved' => array(__('Room request approved', 'community-calendar-study-rooms'), array('name', 'room', 'date', 'start', 'end', 'comment')),
+        'room_denied' => array(__('Room request denied', 'community-calendar-study-rooms'), array('name', 'room', 'date', 'start', 'end', 'comment')),
+        'room_cancelled' => array(__('Room booking cancelled', 'community-calendar-study-rooms'), array('name', 'room', 'date', 'start', 'end', 'comment')),
+        'event_registration' => array(__('Event registration confirmed', 'community-calendar-study-rooms'), array('name', 'event', 'datetime')),
+        'event_registration_staff' => array(__('Event registration for staff', 'community-calendar-study-rooms'), array('name', 'email', 'event', 'datetime', 'answers')),
+        'event_reminder' => array(__('Event reminder', 'community-calendar-study-rooms'), array('name', 'event', 'datetime')),
+        'event_cancelled' => array(__('Event cancelled', 'community-calendar-study-rooms'), array('name', 'event', 'datetime')),
+        'waitlist_joined' => array(__('Waitlist joined', 'community-calendar-study-rooms'), array('name', 'event', 'datetime')),
+        'waitlist_promoted' => array(__('Waitlist place confirmed', 'community-calendar-study-rooms'), array('name', 'event', 'datetime')),
+        'registration_cancelled' => array(__('Event registration cancelled', 'community-calendar-study-rooms'), array('name', 'event', 'datetime')),
+        'waitlist_cancelled' => array(__('Waitlist entry cancelled', 'community-calendar-study-rooms'), array('name', 'event', 'datetime')),
+    );
+}
+
+/** Validates plain-text email template settings; returns false for invalid input. */
+function calsys_validate_email_settings($input) {
+    if (!is_array($input) || !is_string($input['from_email'] ?? null) ||
+        !is_string($input['logo_placement'] ?? null) || !is_array($input['templates'] ?? null)) {
+        return false;
+    }
+    $from_email = trim($input['from_email']);
+    if ($from_email !== '' && (sanitize_email($from_email) !== $from_email || !is_email($from_email))) {
+        return false;
+    }
+    if (!in_array($input['logo_placement'], array('none', 'top', 'bottom'), true)) {
+        return false;
+    }
+    $templates = array();
+    foreach (calsys_email_template_types() as $key => $type) {
+        $template = $input['templates'][$key] ?? null;
+        if (!is_array($template) || !is_string($template['subject'] ?? null) || !is_string($template['body'] ?? null) ||
+            strlen($template['subject']) > 300 || strlen($template['body']) > 10000) {
+            return false;
+        }
+        $subject = sanitize_text_field($template['subject']);
+        $body = sanitize_textarea_field($template['body']);
+        if ($subject === '' || $body === '') {
+            return false;
+        }
+        preg_match_all('/\{([a-z_]+)\}/', $subject . "\n" . $body, $matches);
+        if (array_diff($matches[1], array_merge(array('subject', 'message'), $type[1]))) {
+            return false;
+        }
+        if (in_array($key, array('room_approved', 'room_denied'), true) &&
+            strpos($body, '{message}') === false && strpos($body, '{comment}') === false) {
+            return false;
+        }
+        $templates[$key] = array('subject' => $subject, 'body' => $body);
+    }
+    return array('from_email' => $from_email, 'logo_placement' => $input['logo_placement'], 'templates' => $templates);
 }
 
 /** Returns the supported custom event-registration field types. */
@@ -555,9 +607,14 @@ function calsys_default_settings() {
             'staff_email' => sanitize_email(get_option('admin_email')),
             'notify_staff_room_requests' => 0,
             'email_room_requester' => 0,
-            'email_event_registrant' => 0,
+            'email_event_registrant' => 1,
             'notify_staff_event_registrations' => 0,
             'email_event_reminders' => 0,
+        ),
+        'email_settings' => array(
+            'from_email' => '',
+            'logo_placement' => 'none',
+            'templates' => array_fill_keys(array_keys(calsys_email_template_types()), array('subject' => '{subject}', 'body' => '{message}')),
         ),
         'privacy' => array(
             'hide_guest_room_bookings' => 0,
@@ -600,6 +657,7 @@ function calsys_get_settings() {
         'event_registration' => $defaults['event_registration'],
         'calendar_display' => $defaults['calendar_display'],
         'notifications' => $defaults['notifications'],
+        'email_settings' => $defaults['email_settings'],
         'privacy' => $defaults['privacy'],
     );
     if (!empty($saved['calendar_colors']) && is_array($saved['calendar_colors'])) {
@@ -732,6 +790,14 @@ function calsys_get_settings() {
         'notify_staff_event_registrations' => isset($notifications['notify_staff_event_registrations']) ? (int) (bool) $notifications['notify_staff_event_registrations'] : $defaults['notifications']['notify_staff_event_registrations'],
         'email_event_reminders' => isset($notifications['email_event_reminders']) ? (int) (bool) $notifications['email_event_reminders'] : $defaults['notifications']['email_event_reminders'],
     );
+    if (isset($saved['email_settings'])) {
+        $email_settings = calsys_validate_email_settings($saved['email_settings']);
+        if ($email_settings !== false) {
+            $settings['email_settings'] = $email_settings;
+        } else {
+            error_log('CommonsCal: invalid saved email settings; using default email settings.');
+        }
+    }
 
     $privacy = is_array($saved['privacy'] ?? null) ? $saved['privacy'] : array();
     $settings['privacy'] = array(
@@ -824,9 +890,35 @@ function calsys_show_public_category_labels() {
         (bool) calsys_get_settings()['calendar_display']['show_category_labels'];
 }
 
-/** Sends a plain-text plugin notification email to a validated recipient. */
-function calsys_send_email($recipient, $subject, $message) {
-    $sent = wp_mail($recipient, $subject, $message);
+/** Sends a plugin notification using its configured template and sender. */
+function calsys_send_email($recipient, $subject, $message, $type = '', $context = array()) {
+    $settings = calsys_get_settings()['email_settings'];
+    if ($type !== '' && isset($settings['templates'][$type])) {
+        $replacements = array('{subject}' => $subject, '{message}' => $message);
+        foreach ($context as $key => $value) {
+            $replacements['{' . $key . '}'] = (string) $value;
+        }
+        $subject = sanitize_text_field(strtr($settings['templates'][$type]['subject'], $replacements));
+        $message = strtr($settings['templates'][$type]['body'], $replacements);
+    }
+    $headers = array();
+    if ($settings['from_email'] !== '') {
+        $headers[] = 'From: ' . $settings['from_email'];
+    }
+    if ($settings['logo_placement'] !== 'none') {
+        $logo_id = get_theme_mod('custom_logo');
+        $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : false;
+        if ($logo_id && !$logo_url) {
+            error_log('CommonsCal: the configured site logo could not be loaded for email.');
+        }
+        if ($logo_url) {
+            $logo = '<p><img src="' . esc_url($logo_url) . '" alt="" style="max-width:200px;height:auto;"></p>';
+            $message = nl2br(esc_html($message));
+            $message = $settings['logo_placement'] === 'top' ? $logo . $message : $message . $logo;
+            $headers[] = 'Content-Type: text/html; charset=UTF-8';
+        }
+    }
+    $sent = wp_mail($recipient, $subject, $message, $headers);
     if (!$sent) {
         error_log('CommonsCal: email delivery failed.');
     }

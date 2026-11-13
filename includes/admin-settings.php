@@ -216,19 +216,36 @@ function calsys_admin_settings_page() {
         <h1><?php esc_html_e('Calendar settings', 'community-calendar-study-rooms'); ?></h1>
         <p class="calsys-admin-intro"><?php esc_html_e('Manage calendars, rooms, registration forms, booking rules, and what visitors can see. Changes take effect when you save.', 'community-calendar-study-rooms'); ?></p>
         <nav class="calsys-settings-nav" aria-label="<?php esc_attr_e('Settings sections', 'community-calendar-study-rooms'); ?>">
+            <a href="#calsys-settings-event-emails"><?php esc_html_e('Event emails', 'community-calendar-study-rooms'); ?></a>
             <a href="#calsys-settings-calendars"><?php esc_html_e('Calendars', 'community-calendar-study-rooms'); ?></a>
             <a href="#calsys-settings-bookings"><?php esc_html_e('Bookings', 'community-calendar-study-rooms'); ?></a>
             <a href="#calsys-settings-registrations"><?php esc_html_e('Registrations', 'community-calendar-study-rooms'); ?></a>
             <a href="#calsys-settings-display"><?php esc_html_e('Display', 'community-calendar-study-rooms'); ?></a>
             <a href="#calsys-settings-notifications"><?php esc_html_e('Notifications', 'community-calendar-study-rooms'); ?></a>
+            <a href="#calsys-settings-email-templates"><?php esc_html_e('Email templates', 'community-calendar-study-rooms'); ?></a>
             <a href="#calsys-settings-privacy"><?php esc_html_e('Privacy', 'community-calendar-study-rooms'); ?></a>
             <a href="#calsys-settings-shortcodes"><?php esc_html_e('Shortcodes', 'community-calendar-study-rooms'); ?></a>
+            <a href="#calsys-settings-newsletter"><?php esc_html_e('Newsletter', 'community-calendar-study-rooms'); ?></a>
             <a href="#calsys-settings-rooms"><?php esc_html_e('Rooms', 'community-calendar-study-rooms'); ?></a>
             <a href="#calsys-settings-equipment"><?php esc_html_e('Equipment', 'community-calendar-study-rooms'); ?></a>
         </nav>
         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <?php wp_nonce_field('calsys_save_settings'); ?>
             <input type="hidden" name="action" value="calsys_save_settings">
+
+            <section class="calsys-settings-card" id="calsys-settings-event-emails">
+            <h2><?php esc_html_e('Event confirmations and reminders', 'community-calendar-study-rooms'); ?></h2>
+            <p><?php esc_html_e('Choose which emails event registrants can receive. These settings apply to all events.', 'community-calendar-study-rooms'); ?></p>
+            <table class="form-table" role="presentation"><tbody>
+                <tr><th scope="row"><?php esc_html_e('Instant registration confirmation', 'community-calendar-study-rooms'); ?></th>
+                    <td><label><input name="notifications[email_event_registrant]" type="checkbox" value="1" <?php checked($settings['notifications']['email_event_registrant']); ?>> <?php esc_html_e('Send a confirmation email immediately after registration', 'community-calendar-study-rooms'); ?></label>
+                        <p class="description"><?php esc_html_e('Each successful event registration receives a confirmation, including registrations for series and recurring events.', 'community-calendar-study-rooms'); ?></p></td></tr>
+                <tr><th scope="row"><?php esc_html_e('24-hour event reminder', 'community-calendar-study-rooms'); ?></th>
+                    <td><label><input name="notifications[email_event_reminders]" type="checkbox" value="1" <?php checked($settings['notifications']['email_event_reminders']); ?>> <?php esc_html_e('Enable reminder emails within 24 hours before events', 'community-calendar-study-rooms'); ?></label>
+                        <p class="description"><?php esc_html_e('Registrants must opt in on the registration form. When disabled, the opt-in is hidden and no reminders are sent, including for previous opt-ins. Delivery depends on WordPress scheduled tasks and your mail configuration; failures are logged and retried before the event.', 'community-calendar-study-rooms'); ?></p></td></tr>
+            </tbody></table>
+            <p><button type="submit" class="button button-primary"><?php esc_html_e('Save calendar settings', 'community-calendar-study-rooms'); ?></button></p>
+            </section>
 
             <section class="calsys-settings-card" id="calsys-settings-calendars">
             <h2><?php esc_html_e('Calendar colors', 'community-calendar-study-rooms'); ?></h2>
@@ -408,11 +425,35 @@ function calsys_admin_settings_page() {
                 <tr><th scope="row"><?php esc_html_e('Send email when', 'community-calendar-study-rooms'); ?></th>
                     <td><label><input name="notifications[notify_staff_room_requests]" type="checkbox" value="1" <?php checked($settings['notifications']['notify_staff_room_requests']); ?>> <?php esc_html_e('A public room request is received', 'community-calendar-study-rooms'); ?></label><br>
                         <label><input name="notifications[email_room_requester]" type="checkbox" value="1" <?php checked($settings['notifications']['email_room_requester']); ?>> <?php esc_html_e('A room requester receives a submission confirmation', 'community-calendar-study-rooms'); ?></label><br>
-                        <label><input name="notifications[email_event_registrant]" type="checkbox" value="1" <?php checked($settings['notifications']['email_event_registrant']); ?>> <?php esc_html_e('An event registrant receives a confirmation', 'community-calendar-study-rooms'); ?></label><br>
-                        <label><input name="notifications[notify_staff_event_registrations]" type="checkbox" value="1" <?php checked($settings['notifications']['notify_staff_event_registrations']); ?>> <?php esc_html_e('Staff receives an email for each new event registration', 'community-calendar-study-rooms'); ?></label><br>
-                        <label><input name="notifications[email_event_reminders]" type="checkbox" value="1" <?php checked($settings['notifications']['email_event_reminders']); ?>> <?php esc_html_e('Enable attendee opt-in reminder emails 24 hours before events', 'community-calendar-study-rooms'); ?></label>
-                        <p class="description"><?php esc_html_e('Reminder emails are sent only to registrants who check the opt-in box. Delivery uses WordPress scheduled tasks and your website host mail configuration; failed sends are recorded in the PHP error log.', 'community-calendar-study-rooms'); ?></p></td></tr>
+                        <label><input name="notifications[notify_staff_event_registrations]" type="checkbox" value="1" <?php checked($settings['notifications']['notify_staff_event_registrations']); ?>> <?php esc_html_e('Staff receives an email for each new event registration', 'community-calendar-study-rooms'); ?></label></td></tr>
             </tbody></table>
+            </section>
+
+            <section class="calsys-settings-card" id="calsys-settings-email-templates">
+            <h2><?php esc_html_e('Email templates and sender', 'community-calendar-study-rooms'); ?></h2>
+            <p><?php esc_html_e('These settings apply to CommonsCal emails only. Leave the sender blank to use the WordPress default. Your mail service must allow the chosen sender address.', 'community-calendar-study-rooms'); ?></p>
+            <table class="form-table" role="presentation"><tbody>
+                <tr><th scope="row"><label for="calsys-from-email"><?php esc_html_e('From email address', 'community-calendar-study-rooms'); ?></label></th>
+                    <td><input id="calsys-from-email" class="regular-text" type="email" name="email_settings[from_email]" value="<?php echo esc_attr($settings['email_settings']['from_email']); ?>"></td></tr>
+                <tr><th scope="row"><label for="calsys-email-logo"><?php esc_html_e('Site logo placement', 'community-calendar-study-rooms'); ?></label></th>
+                    <td><select id="calsys-email-logo" name="email_settings[logo_placement]">
+                        <option value="none" <?php selected($settings['email_settings']['logo_placement'], 'none'); ?>><?php esc_html_e('No logo', 'community-calendar-study-rooms'); ?></option>
+                        <option value="top" <?php selected($settings['email_settings']['logo_placement'], 'top'); ?>><?php esc_html_e('Top', 'community-calendar-study-rooms'); ?></option>
+                        <option value="bottom" <?php selected($settings['email_settings']['logo_placement'], 'bottom'); ?>><?php esc_html_e('Bottom', 'community-calendar-study-rooms'); ?></option>
+                    </select><p class="description"><?php esc_html_e('Uses the WordPress site logo when one is set. Email clients may block remote images.', 'community-calendar-study-rooms'); ?></p></td></tr>
+            </tbody></table>
+            <p><?php esc_html_e('Edit each subject and plain-text message. {subject} and {message} insert the original notification. Other available placeholders are listed for each email. Approval and denial messages must include {message} or {comment} so staff comments are delivered.', 'community-calendar-study-rooms'); ?></p>
+            <?php foreach (calsys_email_template_types() as $key => $type) :
+                $template = $settings['email_settings']['templates'][$key]; ?>
+                <details>
+                    <summary><?php echo esc_html($type[0]); ?></summary>
+                    <p class="description"><?php echo esc_html(implode(' ', array_map(function ($placeholder) { return '{' . $placeholder . '}'; }, array_merge(array('subject', 'message'), $type[1])))); ?></p>
+                    <p><label for="calsys-email-subject-<?php echo esc_attr($key); ?>"><?php esc_html_e('Subject', 'community-calendar-study-rooms'); ?></label><br>
+                        <input id="calsys-email-subject-<?php echo esc_attr($key); ?>" class="large-text" name="email_settings[templates][<?php echo esc_attr($key); ?>][subject]" maxlength="300" required value="<?php echo esc_attr($template['subject']); ?>"></p>
+                    <p><label for="calsys-email-body-<?php echo esc_attr($key); ?>"><?php esc_html_e('Message', 'community-calendar-study-rooms'); ?></label><br>
+                        <textarea id="calsys-email-body-<?php echo esc_attr($key); ?>" class="large-text" name="email_settings[templates][<?php echo esc_attr($key); ?>][body]" rows="4" maxlength="10000" required><?php echo esc_textarea($template['body']); ?></textarea></p>
+                </details>
+            <?php endforeach; ?>
             </section>
 
             <section class="calsys-settings-card" id="calsys-settings-privacy">
@@ -444,6 +485,27 @@ function calsys_admin_settings_page() {
 
             <?php submit_button(__('Save calendar settings', 'community-calendar-study-rooms')); ?>
         </form>
+        <section class="calsys-settings-card">
+            <h2><?php esc_html_e('Test email delivery', 'community-calendar-study-rooms'); ?></h2>
+            <p><?php esc_html_e('Save settings first. Send a test to the saved staff notification address; WordPress accepting it does not guarantee inbox delivery.', 'community-calendar-study-rooms'); ?></p>
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <?php wp_nonce_field('calsys_test_email'); ?>
+                <input type="hidden" name="action" value="calsys_test_email">
+                <button type="submit" class="button"><?php esc_html_e('Send test email', 'community-calendar-study-rooms'); ?></button>
+            </form>
+        </section>
+        <section class="calsys-settings-card" id="calsys-settings-newsletter">
+            <h2><?php esc_html_e('PDF newsletter', 'community-calendar-study-rooms'); ?></h2>
+            <p><?php esc_html_e('Download published events for a month with the site logo, event images, dates, times, and descriptions.', 'community-calendar-study-rooms'); ?></p>
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="calsys-report-filter">
+                <?php wp_nonce_field('calsys_export_newsletter'); ?>
+                <input type="hidden" name="action" value="calsys_export_newsletter">
+                <label for="calsys-newsletter-month"><?php esc_html_e('Month', 'community-calendar-study-rooms'); ?>
+                    <input id="calsys-newsletter-month" name="month" type="month" value="<?php echo esc_attr(current_time('Y-m')); ?>" required>
+                </label>
+                <button type="submit" class="button button-primary"><?php esc_html_e('Download PDF newsletter', 'community-calendar-study-rooms'); ?></button>
+            </form>
+        </section>
         <?php calsys_admin_rooms_settings_panel(); ?>
         <?php calsys_admin_equipment_settings(); ?>
         <script type="text/html" id="tmpl-calsys-staff-type">
@@ -696,6 +758,13 @@ function calsys_save_settings() {
     if (!is_email($staff_email)) {
         calsys_admin_redirect('calsys-settings', 'settings_invalid');
     }
+    $email_settings = $old_settings['email_settings'];
+    if (isset($_POST['email_settings'])) {
+        $email_settings = calsys_validate_email_settings(wp_unslash($_POST['email_settings']));
+        if ($email_settings === false) {
+            calsys_admin_redirect('calsys-settings', 'settings_invalid_email_templates');
+        }
+    }
     $posted_privacy = isset($_POST['privacy']) && is_array($_POST['privacy'])
         ? wp_unslash($_POST['privacy'])
         : array();
@@ -756,6 +825,7 @@ function calsys_save_settings() {
             'notify_staff_event_registrations' => isset($posted_notifications['notify_staff_event_registrations']) ? 1 : 0,
             'email_event_reminders' => isset($posted_notifications['email_event_reminders']) ? 1 : 0,
         ),
+        'email_settings' => $email_settings,
         'privacy' => array(
             'hide_guest_room_bookings' => isset($posted_privacy['hide_guest_room_bookings']) ? 1 : 0,
             'show_room_names' => isset($posted_privacy['show_room_names']) ? 1 : 0,
@@ -811,6 +881,19 @@ function calsys_save_settings() {
 }
 add_action('admin_post_calsys_save_settings', 'calsys_save_settings');
 
+/** Sends a test using the saved sender and logo settings. */
+function calsys_test_email() {
+    calsys_require_staff();
+    check_admin_referer('calsys_test_email');
+    $sent = calsys_send_email(
+        calsys_get_settings()['notifications']['staff_email'],
+        __('CommonsCal test email', 'community-calendar-study-rooms'),
+        __('This is a test of your CommonsCal email settings.', 'community-calendar-study-rooms')
+    );
+    calsys_admin_redirect('calsys-settings', $sent ? 'test_email_sent' : 'test_email_failed');
+}
+add_action('admin_post_calsys_test_email', 'calsys_test_email');
+
 /** Displays a translated admin notice for a recognized action result. */
 function calsys_admin_notice() {
     if (empty($_GET['calsys_notice'])) {
@@ -847,6 +930,9 @@ function calsys_admin_notice() {
         'settings_saved' => __('Calendar settings saved.', 'community-calendar-study-rooms'),
         'settings_saved_types_in_use' => __('Settings saved. Booking types used by existing entries were kept.', 'community-calendar-study-rooms'),
         'settings_invalid_hours' => __('Settings were not saved. Choose Open or Custom hours and enter valid opening and closing times, or clear the times for closed and unrestricted days. Check special dates for duplicates.', 'community-calendar-study-rooms'),
+        'settings_invalid_email_templates' => __('Settings were not saved. Check the sender address, logo placement, template lengths and placeholders. Approval and denial messages must include {message} or {comment}.', 'community-calendar-study-rooms'),
+        'test_email_sent' => __('WordPress accepted the test email. Check the staff notification inbox and spam folder.', 'community-calendar-study-rooms'),
+        'test_email_failed' => __('The test email could not be sent. Check the site error log and mail configuration.', 'community-calendar-study-rooms'),
         'settings_invalid' => __('Settings were not saved. Check the booking limits and hours, registration capacity and cutoff, email address, colors, booking types, and event categories.', 'community-calendar-study-rooms'),
     );
     $key = sanitize_key(wp_unslash($_GET['calsys_notice']));

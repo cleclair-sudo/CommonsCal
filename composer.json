@@ -1,0 +1,16 @@
+{
+    "name": "cleclair-sudo/commonscal",
+    "description": "CommonsCal WordPress plugin",
+    "type": "wordpress-plugin",
+    "require": {
+        "php": ">=7.4",
+        "ext-gd": "*",
+        "dompdf/dompdf": "^3.1.6"
+    },
+    "config": {
+        "platform": {
+            "php": "7.4.0"
+        },
+        "sort-packages": true
+    }
+}

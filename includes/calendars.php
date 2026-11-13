@@ -35,6 +35,7 @@ function calsys_public_notice() {
     $registration_settings = calsys_get_settings()['event_registration'];
     $messages = array(
         'registration_complete' => $registration_settings['confirmation_message'],
+        'registration_email_failed' => __('Your registration is complete, but we could not send your confirmation email. Please contact staff.', 'community-calendar-study-rooms'),
         'registration_results_unavailable' => __('Some registrations may have been saved, but their results could not be displayed. Please contact staff before trying again.', 'community-calendar-study-rooms'),
         'event_deleted' => __('Event deleted.', 'community-calendar-study-rooms'),
         'event_deleted_email_failed' => __('The event was deleted, but one or more cancellation emails failed. Check the site error log.', 'community-calendar-study-rooms'),
@@ -76,6 +77,7 @@ function calsys_public_notice() {
             }
             $statuses = array(
                 'registration_complete' => __('Registered', 'community-calendar-study-rooms'),
+                'registration_email_failed' => __('Registered; confirmation email failed. Please contact staff.', 'community-calendar-study-rooms'),
                 'waitlist_joined' => __('Joined waitlist', 'community-calendar-study-rooms'),
                 'waitlist_joined_email_failed' => __('Joined waitlist; email failed', 'community-calendar-study-rooms'),
                 'event_full' => __('Full; not registered', 'community-calendar-study-rooms'),
@@ -290,15 +292,6 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
             $categories = calsys_event_categories();
             $recurrence_filter = calsys_event_group_filter('calsys_recurring');
             $series_filter = calsys_event_group_filter('calsys_series');
-            $filter_series = $wpdb->get_results(
-                "SELECT DISTINCT s.id, s.name FROM " . calsys_table('series') . " s
-                INNER JOIN " . calsys_table('events') . " e ON e.series_id = s.id
-                WHERE e.status = 'published' ORDER BY s.name, s.id"
-            );
-            if (!is_array($filter_series) || $wpdb->last_error) {
-                error_log('CommonsCal: unable to load series filter: ' . $wpdb->last_error);
-                $filter_series = false;
-            }
             $filter_url = remove_query_arg(array('calsys_notice', 'calsys_month', 'calsys_date', 'calsys_view', 'calsys_category', 'calsys_recurring', 'calsys_series'));
             $clear_url = remove_query_arg(array('calsys_notice', 'calsys_category', 'calsys_recurring', 'calsys_series'));
             $filter_query = array();
@@ -325,24 +318,20 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
                         <?php endforeach; ?>
                     </div>
                 </fieldset>
-                <label><?php esc_html_e('Recurring events', 'community-calendar-study-rooms'); ?>
-                    <select name="calsys_recurring">
-                        <option value="all" <?php selected($recurrence_filter, 'all'); ?>><?php esc_html_e('All events', 'community-calendar-study-rooms'); ?></option>
-                        <option value="yes" <?php selected($recurrence_filter, 'yes'); ?>><?php esc_html_e('Recurring only', 'community-calendar-study-rooms'); ?></option>
-                        <option value="no" <?php selected($recurrence_filter, 'no'); ?>><?php esc_html_e('Not recurring', 'community-calendar-study-rooms'); ?></option>
-                    </select>
-                </label>
-                <label><?php esc_html_e('Series events', 'community-calendar-study-rooms'); ?>
-                    <select name="calsys_series">
-                        <option value="all" <?php selected($series_filter, 'all'); ?>><?php esc_html_e('All events', 'community-calendar-study-rooms'); ?></option>
-                        <option value="yes" <?php selected($series_filter, 'yes'); ?>><?php esc_html_e('In a series', 'community-calendar-study-rooms'); ?></option>
-                        <option value="no" <?php selected($series_filter, 'no'); ?>><?php esc_html_e('Not in a series', 'community-calendar-study-rooms'); ?></option>
-                        <?php if ($filter_series !== false) : foreach ($filter_series as $item) : ?>
-                            <option value="id_<?php echo esc_attr($item->id); ?>" <?php selected($series_filter, 'id_' . $item->id); ?>><?php echo esc_html($item->name); ?></option>
-                        <?php endforeach; endif; ?>
-                    </select>
-                </label>
-                <?php if ($filter_series === false) : ?><p role="status"><?php esc_html_e('Named series filters could not be loaded. Please contact staff.', 'community-calendar-study-rooms'); ?></p><?php endif; ?>
+                <fieldset class="calsys-category-filter-options calsys-group-filter-options">
+                    <legend><?php esc_html_e('Filter by event type', 'community-calendar-study-rooms'); ?></legend>
+                    <p class="calsys-group-filter-help"><?php esc_html_e('Show events matching either selection. Leave both unchecked to show all.', 'community-calendar-study-rooms'); ?></p>
+                    <div class="calsys-category-checkboxes">
+                        <label class="calsys-category-choice">
+                            <input type="checkbox" name="calsys_recurring" value="yes" <?php checked($recurrence_filter === 'yes'); ?>>
+                            <span><?php esc_html_e('Recurring events', 'community-calendar-study-rooms'); ?></span>
+                        </label>
+                        <label class="calsys-category-choice">
+                            <input type="checkbox" name="calsys_series" value="yes" <?php checked($series_filter === 'yes'); ?>>
+                            <span><?php esc_html_e('Series events', 'community-calendar-study-rooms'); ?></span>
+                        </label>
+                    </div>
+                </fieldset>
                 <div class="calsys-category-filter-actions">
                     <button type="submit"><?php esc_html_e('Apply filters', 'community-calendar-study-rooms'); ?></button>
                     <?php if ($selected_categories || $recurrence_filter !== 'all' || $series_filter !== 'all') : ?><a href="<?php echo esc_url($clear_url); ?>"><?php esc_html_e('Clear filters', 'community-calendar-study-rooms'); ?></a><?php endif; ?>
@@ -357,6 +346,33 @@ function calsys_render_calendar($title, $events, $month, $calendar_type, $view =
                         </div>
                     </nav>
                 <?php endif; ?>
+            </form>
+        <?php elseif ($calendar_type === 'staff') :
+            $selected_types = calsys_selected_staff_types();
+            $filter_url = remove_query_arg(array('calsys_notice', 'calsys_month', 'calsys_staff_type'));
+            $clear_url = remove_query_arg(array('calsys_notice', 'calsys_staff_type'));
+            $filter_query = array();
+            parse_str((string) wp_parse_url($filter_url, PHP_URL_QUERY), $filter_query);
+            ?>
+            <form class="calsys-category-filter" method="get" action="<?php echo esc_url($filter_url); ?>" data-calsys-auto-submit>
+                <?php echo calsys_calendar_hidden_query_fields($filter_query); ?>
+                <input type="hidden" name="calsys_month" value="<?php echo esc_attr($month->format('Y-m')); ?>">
+                <fieldset class="calsys-category-filter-options">
+                    <legend><?php esc_html_e('Filter by staff entry type', 'community-calendar-study-rooms'); ?></legend>
+                    <p class="calsys-group-filter-help"><?php esc_html_e('Choose one or more types. Leave all unchecked to show every entry.', 'community-calendar-study-rooms'); ?></p>
+                    <div class="calsys-category-checkboxes">
+                        <?php foreach (calsys_staff_types() as $key => $label) : ?>
+                            <label class="calsys-category-choice">
+                                <input type="checkbox" name="calsys_staff_type[]" value="<?php echo esc_attr($key); ?>" <?php checked(in_array($key, $selected_types, true)); ?>>
+                                <span><?php echo esc_html($label); ?></span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                </fieldset>
+                <div class="calsys-category-filter-actions">
+                    <button type="submit"><?php esc_html_e('Apply filters', 'community-calendar-study-rooms'); ?></button>
+                    <?php if ($selected_types) : ?><a href="<?php echo esc_url($clear_url); ?>"><?php esc_html_e('Clear filters', 'community-calendar-study-rooms'); ?></a><?php endif; ?>
+                </div>
             </form>
         <?php endif; ?>
         <div class="calsys-print-actions">
@@ -554,6 +570,37 @@ function calsys_selected_event_categories() {
     return $selected;
 }
 
+/** Returns valid, unique staff entry types selected in the current request. */
+function calsys_selected_staff_types() {
+    $raw_selected = wp_unslash($_GET['calsys_staff_type'] ?? array());
+    $types = calsys_staff_types();
+    if (!is_array($raw_selected)) {
+        $raw_selected = array($raw_selected);
+    }
+    $selected = array();
+    foreach ($raw_selected as $value) {
+        if (!is_string($value)) {
+            continue;
+        }
+        $key = sanitize_key($value);
+        if (isset($types[$key]) && !in_array($key, $selected, true)) {
+            $selected[] = $key;
+        }
+    }
+    return $selected;
+}
+
+/** Builds a prepared SQL fragment limiting results to selected staff types. */
+function calsys_staff_type_sql() {
+    global $wpdb;
+    $types = calsys_selected_staff_types();
+    if (!$types) {
+        return '';
+    }
+    $placeholders = implode(', ', array_fill(0, count($types), '%s'));
+    return $wpdb->prepare(" AND entry_type IN ($placeholders)", $types);
+}
+
 /** Builds a prepared SQL fragment limiting results to selected event categories. */
 function calsys_event_category_sql($column = 'e.category') {
     global $wpdb;
@@ -568,31 +615,19 @@ function calsys_event_category_sql($column = 'e.category') {
 /** Returns a validated recurring or named-series filter. */
 function calsys_event_group_filter($key) {
     $value = isset($_GET[$key]) && is_string($_GET[$key]) ? wp_unslash($_GET[$key]) : 'all';
-    if ($key === 'calsys_series' && preg_match('/^id_[1-9][0-9]*$/', $value)) {
-        return $value;
-    }
-    return in_array($value, array('all', 'yes', 'no'), true) ? $value : 'all';
+    return $value === 'yes' ? 'yes' : 'all';
 }
 
-/** Filters recurrence and named series independently. */
+/** Includes events matching any selected recurrence or series filter. */
 function calsys_event_group_filter_sql() {
-    global $wpdb;
-    $sql = '';
-    $recurring = calsys_event_group_filter('calsys_recurring');
-    $series = calsys_event_group_filter('calsys_series');
-    if ($recurring !== 'all') {
-        $sql .= $recurring === 'yes' ? " AND e.recurrence_group <> ''" : " AND e.recurrence_group = ''";
+    $conditions = array();
+    if (calsys_event_group_filter('calsys_recurring') === 'yes') {
+        $conditions[] = "e.recurrence_group <> ''";
     }
-    if ($series !== 'all') {
-        if ($series === 'yes') {
-            $sql .= ' AND e.series_id > 0';
-        } elseif ($series === 'no') {
-            $sql .= ' AND e.series_id = 0';
-        } else {
-            $sql .= $wpdb->prepare(' AND e.series_id = %d', (int) substr($series, 3));
-        }
+    if (calsys_event_group_filter('calsys_series') === 'yes') {
+        $conditions[] = 'e.series_id > 0';
     }
-    return $sql;
+    return $conditions ? ' AND (' . implode(' OR ', $conditions) . ')' : '';
 }
 
 /** Whether room-booking listings are hidden for the current visitor. */
@@ -899,6 +934,48 @@ function calsys_render_event_registration_forms($events) {
         $capacity = calsys_event_capacity($event->capacity);
         $full = $capacity > 0 && (int) $event->registration_count >= $capacity;
         $registration_available = !empty($event->registration_enabled) && !empty($registration_settings['enabled']);
+        $registration_open = $registration_available && calsys_event_registration_is_open($event->starts_at);
+        $choices = array();
+        if ($registration_open) {
+            foreach ($related as $related_event) {
+                if ((int) $related_event->id !== (int) $event->id && !empty($related_event->registration_enabled) &&
+                    calsys_event_registration_is_open($related_event->starts_at) &&
+                    calsys_decode_registration_fields($related_event->registration_fields ?? '') === $event_fields) {
+                    $choices[(int) $related_event->id] = true;
+                }
+            }
+        }
+        $series_markup = '';
+        if ($series_error && !empty($event->series_id)) {
+            $series_markup = '<p class="calsys-series-error">' . esc_html__('Series events could not be loaded. Please contact staff.', 'community-calendar-study-rooms') . '</p>';
+        } elseif ($related) {
+            $series_markup = '<details class="calsys-series-selection"><summary>' .
+                esc_html(sprintf(__('Events in %s', 'community-calendar-study-rooms'), $related[0]->series_name)) . '</summary><div class="calsys-series-content">';
+            if ($choices) {
+                $series_markup .= '<p class="calsys-series-help">' . esc_html__('Select other open events with matching registration questions. Full or unavailable events will be reported after submission.', 'community-calendar-study-rooms') . '</p>';
+                $series_markup .= '<label class="calsys-checkbox-label calsys-series-select-all"><input type="checkbox" name="series_select_all" value="1" data-calsys-select-series-events> ' . esc_html__('Select all eligible events', 'community-calendar-study-rooms') . '</label>';
+            }
+            $series_markup .= '<ul class="calsys-series-list">';
+            foreach ($related as $related_event) {
+                $id = (int) $related_event->id;
+                $title = esc_html($related_event->title);
+                $date = esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $related_event->starts_at));
+                $series_markup .= '<li>';
+                if (isset($choices[$id])) {
+                    $series_markup .= '<label class="calsys-checkbox-label"><input type="checkbox" name="series_events[]" value="' . esc_attr($id) . '"><span><strong>' . $title . '</strong><span class="calsys-series-date">' . $date . '</span></span></label>';
+                } else {
+                    $status = $id === (int) $event->id ? __('This event', 'community-calendar-study-rooms') :
+                        ($registration_open ? __('Not available for combined registration', 'community-calendar-study-rooms') : '');
+                    $series_markup .= '<div class="calsys-series-event"><strong>' . $title . '</strong><span class="calsys-series-date">' . $date . '</span>';
+                    if ($status !== '') {
+                        $series_markup .= '<span class="calsys-series-status">' . esc_html($status) . '</span>';
+                    }
+                    $series_markup .= '</div>';
+                }
+                $series_markup .= '</li>';
+            }
+            $series_markup .= '</ul></div></details>';
+        }
         echo '<dialog class="calsys-modal calsys-registration-dialog" data-calsys-registration-dialog="' . esc_attr($event->id) . '" aria-label="' . esc_attr(sprintf(__('Details for %s', 'community-calendar-study-rooms'), $event->title)) . '">';
         echo '<section class="calsys-action-card calsys-event-registration">';
         echo '<div class="calsys-action-card-heading"><div class="calsys-dialog-title-row"><h2>' . esc_html($event->title) . '</h2>';
@@ -910,21 +987,15 @@ function calsys_render_event_registration_forms($events) {
         if ($event->description !== '') {
             echo '<div class="calsys-event-description">' . wpautop(wp_kses_post($event->description)) . '</div>';
         }
-        if ($series_error && !empty($event->series_id)) {
-            echo '<p>' . esc_html__('Series events could not be loaded. Please contact staff.', 'community-calendar-study-rooms') . '</p>';
-        } elseif ($related) {
-            echo '<details class="calsys-series-events"><summary>' . esc_html(sprintf(__('All events in %s', 'community-calendar-study-rooms'), $related[0]->series_name)) . '</summary><ul>';
-            foreach ($related as $related_event) {
-                echo '<li>' . esc_html($related_event->title) . ' &mdash; ' . esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $related_event->starts_at)) . '</li>';
-            }
-            echo '</ul></details>';
+        if (!$registration_open) {
+            echo $series_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         }
         if ($registration_settings['form_intro'] !== '') {
             echo '<p class="calsys-registration-intro">' . esc_html($registration_settings['form_intro']) . '</p>';
         }
         if (!$registration_available) {
             echo '<p class="calsys-registration-full">' . esc_html($registration_settings['disabled_message']) . '</p>';
-        } elseif (!calsys_event_registration_is_open($event->starts_at)) {
+        } elseif (!$registration_open) {
             echo '<p class="calsys-registration-full">' . esc_html($registration_settings['closed_message']) . '</p>';
         } else {
             if ($full) {
@@ -944,24 +1015,7 @@ function calsys_render_event_registration_forms($events) {
             echo '<div class="calsys-form-grid"><p><label>' . esc_html($registration_settings['name_label']) . '<input name="name" type="text" autocomplete="name" maxlength="200" required></label></p>';
             echo '<p><label>' . esc_html($registration_settings['email_label']) . '<input name="email" type="email" autocomplete="email" maxlength="200" required></label></p></div>';
             echo calsys_registration_form_fields($event_fields);
-            $choices = array();
-            foreach ($related as $related_event) {
-                if ((int) $related_event->id !== (int) $event->id && !empty($related_event->registration_enabled) &&
-                    calsys_event_registration_is_open($related_event->starts_at) &&
-                    calsys_decode_registration_fields($related_event->registration_fields ?? '') === $event_fields) {
-                    $choices[] = $related_event;
-                }
-            }
-            if ($choices) {
-                echo '<details class="calsys-series-selection"><summary>' . esc_html__('Register for other events in this series', 'community-calendar-study-rooms') . '</summary>';
-                echo '<p>' . esc_html__('Only open events with matching registration questions are shown. Full or unavailable events will be reported after submission.', 'community-calendar-study-rooms') . '</p>';
-                echo '<label class="calsys-checkbox-label"><input type="checkbox" name="series_select_all" value="1" data-calsys-select-series-events> ' . esc_html__('Select all', 'community-calendar-study-rooms') . '</label>';
-                foreach ($choices as $choice) {
-                    echo '<label class="calsys-checkbox-label"><input type="checkbox" name="series_events[]" value="' . esc_attr($choice->id) . '"> ' .
-                        esc_html($choice->title) . ' &mdash; ' . esc_html(mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $choice->starts_at)) . '</label>';
-                }
-                echo '</details>';
-            }
+            echo $series_markup; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             if (!empty($event->register_all_recurrences) && !empty($event->recurrence_group)) {
                 echo '<p><label class="calsys-checkbox-label"><input name="all_recurrences" type="checkbox" value="1"> ' .
                     esc_html__('Also register for all upcoming recurring events', 'community-calendar-study-rooms') . '</label></p>';
@@ -1000,11 +1054,17 @@ function calsys_staff_calendar_shortcode() {
     $entries = $wpdb->get_results($wpdb->prepare(
         "SELECT id, title, entry_type, starts_at, ends_at, all_day, room_id
         FROM " . calsys_table('staff_calendar') . "
-        WHERE starts_at < %s AND ends_at >= %s
+        WHERE starts_at < %s AND ends_at >= %s " . calsys_staff_type_sql() . "
         ORDER BY starts_at ASC",
         $grid_end->format('Y-m-d H:i:s'),
         $grid_start->format('Y-m-d H:i:s')
     ));
+    if (!is_array($entries)) {
+        error_log('CommonsCal: unable to load staff calendar: ' . $wpdb->last_error);
+        return '<div class="calsys-calendar-widget calsys-calendar-widget-staff"><div class="calsys-notice" role="status">' .
+            esc_html__('The staff calendar could not be loaded. Please contact the site administrator.', 'community-calendar-study-rooms') .
+            '</div></div>';
+    }
     foreach ($entries as $entry) {
         $entry->calendar_type = 'staff';
         $types = calsys_staff_types();

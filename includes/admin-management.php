@@ -714,7 +714,7 @@ function calsys_admin_rooms_page() {
                     <p><?php esc_html_e('Review room bookings alongside upcoming events, or select a day to add a booking.', 'community-calendar-study-rooms'); ?></p></div>
             </div>
             <div class="calsys-calendar-widget calsys-calendar-widget-rooms">
-                <?php if (isset($_GET['calsys_notice']) && in_array(wp_unslash($_GET['calsys_notice']), array('registration_results', 'registration_results_unavailable', 'registration_complete', 'invalid_registration', 'already_registered', 'event_full', 'registration_disabled', 'registration_closed', 'waitlist_joined', 'waitlist_joined_email_failed'), true)) : ?>
+                <?php if (isset($_GET['calsys_notice']) && in_array(wp_unslash($_GET['calsys_notice']), array('registration_results', 'registration_results_unavailable', 'registration_complete', 'registration_email_failed', 'invalid_registration', 'already_registered', 'event_full', 'registration_disabled', 'registration_closed', 'waitlist_joined', 'waitlist_joined_email_failed'), true)) : ?>
                     <?php echo calsys_public_notice(); ?>
                 <?php endif; ?>
                 <?php echo calsys_render_calendar(__('Room bookings and upcoming events', 'community-calendar-study-rooms'), $room_calendar_entries, $month, 'combined'); ?>
@@ -784,7 +784,7 @@ function calsys_admin_staff_calendar_page() {
 
     $entries = $wpdb->get_results($wpdb->prepare(
         "SELECT * FROM " . calsys_table('staff_calendar') . "
-        WHERE ends_at >= %s
+        WHERE ends_at >= %s " . calsys_staff_type_sql() . "
         ORDER BY starts_at ASC LIMIT 200",
         current_time('mysql')
     ));
@@ -794,7 +794,7 @@ function calsys_admin_staff_calendar_page() {
     $calendar_entries = $wpdb->get_results($wpdb->prepare(
         "SELECT id, title, entry_type, starts_at, ends_at, all_day, room_id
         FROM " . calsys_table('staff_calendar') . "
-        WHERE starts_at < %s AND ends_at >= %s
+        WHERE starts_at < %s AND ends_at >= %s " . calsys_staff_type_sql() . "
         ORDER BY starts_at ASC",
         $grid_end->format('Y-m-d H:i:s'),
         $grid_start->format('Y-m-d H:i:s')
@@ -827,7 +827,7 @@ function calsys_admin_staff_calendar_page() {
         </section>
 
         <section class="calsys-admin-card">
-        <div class="calsys-admin-card-heading"><div><h2><?php esc_html_e('Upcoming entries', 'community-calendar-study-rooms'); ?></h2><p><?php esc_html_e('Entries currently scheduled, ordered by start time.', 'community-calendar-study-rooms'); ?></p></div></div>
+        <div class="calsys-admin-card-heading"><div><h2><?php esc_html_e('Upcoming entries', 'community-calendar-study-rooms'); ?></h2><p><?php esc_html_e('Entries matching the selected types, ordered by start time.', 'community-calendar-study-rooms'); ?></p></div></div>
         <table class="widefat striped">
             <thead><tr><th><?php esc_html_e('Entry', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('Type', 'community-calendar-study-rooms'); ?></th><th><?php esc_html_e('When', 'community-calendar-study-rooms'); ?></th><th></th></tr></thead>
             <tbody>

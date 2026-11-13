@@ -224,7 +224,9 @@ function calsys_register_one_event($event_id, $anchor, $name, $email, $event_fie
         $sent = calsys_send_email(
             strtolower($email),
             sprintf(__('Waitlist joined: %s', 'community-calendar-study-rooms'), $locked_event->title),
-            sprintf(__('Hello %1$s, you are on the waitlist for %2$s. We will email you if a place becomes available.', 'community-calendar-study-rooms'), $name, $locked_event->title)
+            sprintf(__('Hello %1$s, you are on the waitlist for %2$s. We will email you if a place becomes available.', 'community-calendar-study-rooms'), $name, $locked_event->title),
+            'waitlist_joined',
+            array('name' => $name, 'event' => $locked_event->title, 'datetime' => mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $locked_event->starts_at))
         );
         $result['status'] = $sent ? 'waitlist_joined' : 'waitlist_joined_email_failed';
         return $result;
@@ -239,12 +241,14 @@ function calsys_register_one_event($event_id, $anchor, $name, $email, $event_fie
         'registered_at' => current_time('mysql'),
     ), array('%d', '%s', '%s', '%s', '%d', '%s'));
     if (!$inserted || $wpdb->query('COMMIT') === false) {
+        error_log('CommonsCal: unable to save event registration: ' . $wpdb->last_error);
         $wpdb->query('ROLLBACK');
         return $result;
     }
     $event = $locked_event;
+    $confirmation_sent = true;
     if ($notification_settings['email_event_registrant']) {
-        calsys_send_email(
+        $confirmation_sent = calsys_send_email(
             strtolower($email),
             sprintf(__('Registration confirmed: %s', 'community-calendar-study-rooms'), $event->title),
             sprintf(
@@ -252,7 +256,9 @@ function calsys_register_one_event($event_id, $anchor, $name, $email, $event_fie
                 $name,
                 $event->title,
                 mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at)
-            )
+            ),
+            'event_registration',
+            array('name' => $name, 'event' => $event->title, 'datetime' => mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at))
         );
     }
     $registration_recipients = calsys_decode_registration_recipients($event->registration_recipients ?? '');
@@ -278,10 +284,14 @@ function calsys_register_one_event($event_id, $anchor, $name, $email, $event_fie
         calsys_send_email(
             $registration_recipients,
             sprintf(__('New registration: %s', 'community-calendar-study-rooms'), $event->title),
-            $message
+            $message,
+            'event_registration_staff',
+            array('name' => $name, 'email' => strtolower($email), 'event' => $event->title,
+                'datetime' => mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at),
+                'answers' => implode("\n", $answer_lines))
         );
     }
-    $result['status'] = 'registration_complete';
+    $result['status'] = $confirmation_sent ? 'registration_complete' : 'registration_email_failed';
     return $result;
 }
 
@@ -333,57 +343,70 @@ function calsys_send_due_event_reminders() {
     $now = current_time('mysql');
     $deadline = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $now, wp_timezone())
         ->modify('+24 hours')->format('Y-m-d H:i:s');
-    $due = $wpdb->get_results($wpdb->prepare(
-        "SELECT r.id, r.name, r.email, e.title, e.starts_at
-        FROM " . calsys_table('registrations') . " r
-        INNER JOIN " . calsys_table('events') . " e ON e.id = r.event_id
-        WHERE r.reminder_opt_in = 1 AND r.reminder_sent_at IS NULL
-            AND e.status = 'published' AND e.starts_at > %s AND e.starts_at <= %s
-        ORDER BY e.starts_at ASC LIMIT 500",
-        $now,
-        $deadline
-    ));
-    if ($due === null) {
-        error_log('CommonsCal: unable to load pending event reminders: ' . $wpdb->last_error);
-        return;
-    }
-    foreach ($due as $registration) {
-        $claimed = $wpdb->update(
-            calsys_table('registrations'),
-            array('reminder_sent_at' => $now),
-            array('id' => $registration->id, 'reminder_sent_at' => null),
-            array('%s'),
-            array('%d', '%s')
+    $last_start = '';
+    $last_id = 0;
+    do {
+        $cursor = $last_start === '' ? '' : $wpdb->prepare(
+            ' AND (e.starts_at > %s OR (e.starts_at = %s AND r.id > %d))',
+            $last_start, $last_start, $last_id
         );
-        if ($claimed === false) {
-            error_log('CommonsCal: unable to claim an event reminder: ' . $wpdb->last_error);
-            continue;
+        $due = $wpdb->get_results($wpdb->prepare(
+            "SELECT r.id, r.name, r.email, e.title, e.starts_at
+            FROM " . calsys_table('registrations') . " r
+            INNER JOIN " . calsys_table('events') . " e ON e.id = r.event_id
+            WHERE r.reminder_opt_in = 1 AND r.reminder_sent_at IS NULL
+                AND e.status = 'published' AND e.starts_at > %s AND e.starts_at <= %s $cursor
+            ORDER BY e.starts_at ASC, r.id ASC LIMIT 500",
+            $now,
+            $deadline
+        ));
+        if (!is_array($due) || $wpdb->last_error !== '') {
+            error_log('CommonsCal: unable to load pending event reminders: ' . $wpdb->last_error);
+            return;
         }
-        if ($claimed !== 1) {
-            continue;
-        }
-        $sent = calsys_send_email(
-            $registration->email,
-            sprintf(__('Reminder: %s is coming up', 'community-calendar-study-rooms'), $registration->title),
-            sprintf(
-                __('Hello %1$s, this is a reminder that %2$s starts on %3$s.', 'community-calendar-study-rooms'),
-                $registration->name,
-                $registration->title,
-                mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $registration->starts_at)
-            )
-        );
-        if (!$sent) {
-            $reset = $wpdb->update(
+        foreach ($due as $registration) {
+            $last_start = $registration->starts_at;
+            $last_id = (int) $registration->id;
+            $claimed = $wpdb->update(
                 calsys_table('registrations'),
-                array('reminder_sent_at' => null),
-                array('id' => $registration->id),
+                array('reminder_sent_at' => $now),
+                array('id' => $registration->id, 'reminder_sent_at' => null),
                 array('%s'),
-                array('%d')
+                array('%d', '%s')
             );
-            if ($reset === false) {
-                error_log('CommonsCal: unable to retry a failed event reminder: ' . $wpdb->last_error);
+            if ($claimed === false) {
+                error_log('CommonsCal: unable to claim an event reminder: ' . $wpdb->last_error);
+                continue;
+            }
+            if ($claimed !== 1) {
+                continue;
+            }
+            $sent = calsys_send_email(
+                $registration->email,
+                sprintf(__('Reminder: %s is coming up', 'community-calendar-study-rooms'), $registration->title),
+                sprintf(
+                    __('Hello %1$s, this is a reminder that %2$s starts on %3$s.', 'community-calendar-study-rooms'),
+                    $registration->name,
+                    $registration->title,
+                    mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $registration->starts_at)
+                ),
+                'event_reminder',
+                array('name' => $registration->name, 'event' => $registration->title,
+                    'datetime' => mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $registration->starts_at))
+            );
+            if (!$sent) {
+                $reset = $wpdb->update(
+                    calsys_table('registrations'),
+                    array('reminder_sent_at' => null),
+                    array('id' => $registration->id),
+                    array('%s'),
+                    array('%d')
+                );
+                if ($reset === false) {
+                    error_log('CommonsCal: unable to retry a failed event reminder: ' . $wpdb->last_error);
+                }
             }
         }
-    }
+    } while (count($due) === 500);
 }
 add_action('calsys_send_due_event_reminders', 'calsys_send_due_event_reminders');

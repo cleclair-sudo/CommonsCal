@@ -246,20 +246,92 @@
     margin-top: 0.4rem;
 }
 
-.calsys-category-filter > label {
-    display: inline-flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    margin: 0.4rem 0.75rem 0 0;
+.calsys-group-filter-options {
+    margin-top: 0.4rem;
 }
 
-.calsys-series-events,
+.calsys-group-filter-help {
+    color: var(--calsys-muted, #596675);
+    font-size: 0.85rem;
+    margin: 0.15rem 0 0.4rem;
+}
+
 .calsys-series-selection {
+    background: #f7f9fb;
+    border: 1px solid var(--calsys-border, #d7dce2);
+    border-radius: 0.25rem;
     margin: 0.75rem 0;
+    overflow: hidden;
 }
 
-.calsys-series-selection .calsys-checkbox-label {
-    margin: 0.4rem 0;
+.calsys-registration-dialog .calsys-action-card > .calsys-series-selection,
+.calsys-registration-dialog .calsys-action-card > .calsys-series-error {
+    margin: 1rem 1.5rem;
+}
+
+.calsys-series-selection summary {
+    color: var(--calsys-ink, #1f2933);
+    cursor: pointer;
+    font-weight: 700;
+    padding: 0.85rem 1rem;
+}
+
+.calsys-series-selection summary:focus-visible {
+    outline: 2px solid var(--calsys-accent, #1d5f8a);
+    outline-offset: -2px;
+}
+
+.calsys-series-content {
+    border-top: 1px solid var(--calsys-border, #d7dce2);
+    padding: 0.75rem 1rem 1rem;
+}
+
+.calsys-series-help,
+.calsys-series-date,
+.calsys-series-status {
+    color: var(--calsys-muted, #596675);
+    font-size: 0.875rem;
+}
+
+.calsys-series-help {
+    margin: 0 0 0.75rem;
+}
+
+.calsys-form .calsys-series-select-all {
+    margin: 0 0 0.75rem;
+}
+
+.calsys-series-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.calsys-series-list li {
+    background: #fff;
+    border: 1px solid var(--calsys-border, #d7dce2);
+    border-bottom: 0;
+    margin: 0;
+}
+
+.calsys-series-list li:last-child {
+    border-bottom: 1px solid var(--calsys-border, #d7dce2);
+}
+
+.calsys-form .calsys-series-list .calsys-checkbox-label,
+.calsys-series-event {
+    align-items: flex-start;
+    padding: 0.7rem 0.8rem;
+}
+
+.calsys-form .calsys-series-list .calsys-checkbox-label input {
+    margin-top: 0.2rem;
+}
+
+.calsys-series-date,
+.calsys-series-status {
+    display: block;
+    font-weight: 400;
 }
 
 .calsys-category-filter-actions button {

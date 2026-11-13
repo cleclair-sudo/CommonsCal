@@ -926,7 +926,7 @@
             selectAll.indeterminate = checkedChoices.length > 0 && checkedChoices.length < choices.length;
         }
         if (event.target instanceof Element &&
-            event.target.matches('.calsys-category-filter input[name="calsys_category[]"], .calsys-category-filter select[name="calsys_recurring"], .calsys-category-filter select[name="calsys_series"]')) {
+            event.target.matches('.calsys-category-filter input[name="calsys_category[]"], .calsys-category-filter input[name="calsys_staff_type[]"], .calsys-category-filter input[name="calsys_recurring"], .calsys-category-filter input[name="calsys_series"]')) {
             var categoryFilter = event.target.closest('[data-calsys-auto-submit]');
             if (categoryFilter) {
                 categoryFilter.requestSubmit();

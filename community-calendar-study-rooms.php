@@ -2,7 +2,7 @@
 /**
  * Plugin Name: CommonsCal
  * Description: Publish events, accept registrations, and manage study room requests.
- * Version: 0.09.29
+ * Version: 0.09.36
  * Author: Southern Maine Technology Initiative
  * Requires at least: 6.0
  * Requires PHP: 7.4
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CALSYS_VERSION', '0.09.29');
+define('CALSYS_VERSION', '0.09.36');
 define('CALSYS_DB_VERSION', '13');
 define('CALSYS_PLUGIN_FILE', __FILE__);
 
@@ -35,3 +35,4 @@ require_once __DIR__ . '/includes/calendars.php';
 require_once __DIR__ . '/includes/ical.php';
 require_once __DIR__ . '/includes/privacy.php';
 require_once __DIR__ . '/includes/reports.php';
+require_once __DIR__ . '/includes/newsletter.php';

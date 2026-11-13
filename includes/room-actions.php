@@ -187,11 +187,15 @@ function calsys_save_booking($staff_booking = false, $frontend = false) {
             $status_text,
             $request_reason !== '' ? $request_reason : __('Not provided', 'community-calendar-study-rooms')
         );
+        $email_context = array('name' => $booking['name'], 'room' => $booking['room_name'], 'date' => $booking['date'],
+            'start' => $booking['start'], 'end' => $booking['end']);
         if ($settings['notifications']['notify_staff_room_requests']) {
             calsys_send_email(
                 $settings['notifications']['staff_email'],
                 __('New room booking request', 'community-calendar-study-rooms'),
-                $booking_summary
+                $booking_summary,
+                'room_request_staff',
+                $email_context
             );
         }
         if ($settings['notifications']['email_room_requester']) {
@@ -202,7 +206,9 @@ function calsys_save_booking($staff_booking = false, $frontend = false) {
                     : __('Room request received', 'community-calendar-study-rooms'),
                 $booking_status === 'approved'
                     ? sprintf(__('Hello %1$s, your room booking is confirmed. %2$s', 'community-calendar-study-rooms'), $booking['name'], $booking_summary)
-                    : sprintf(__('Hello %1$s, we received your room request. %2$s', 'community-calendar-study-rooms'), $booking['name'], $booking_summary)
+                    : sprintf(__('Hello %1$s, we received your room request. %2$s', 'community-calendar-study-rooms'), $booking['name'], $booking_summary),
+                $booking_status === 'approved' ? 'room_booking_confirmed' : 'room_request_received',
+                $email_context
             );
         }
     }
@@ -287,7 +293,9 @@ function calsys_notify_room_status($booking, $status, $comment = '') {
     if ($comment !== '') {
         $message .= "\n\n" . __('Staff comment:', 'community-calendar-study-rooms') . "\n" . $comment;
     }
-    return calsys_send_email($booking->requester_email, $subjects[$status], $message);
+    return calsys_send_email($booking->requester_email, $subjects[$status], $message, 'room_' . $status,
+        array('name' => $booking->requester_name, 'room' => $room_name, 'date' => $booking->booking_date,
+            'start' => $booking->starts_at, 'end' => $booking->ends_at, 'comment' => $comment));
 }
 
 /** Approves or denies a pending room request after permission and conflict checks. */

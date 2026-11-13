@@ -58,7 +58,10 @@ function calsys_notify_promoted_waitlist($event, $promoted) {
                 $person->name,
                 $event->title,
                 mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at)
-            )
+            ),
+            'waitlist_promoted',
+            array('name' => $person->name, 'event' => $event->title,
+                'datetime' => mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at))
         );
         $all_sent = $sent && $all_sent;
     }
@@ -129,7 +132,10 @@ function calsys_cancel_event_attendee() {
             $person->name,
             $event->title,
             mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at)
-        )
+        ),
+        $kind === 'registration' ? 'registration_cancelled' : 'waitlist_cancelled',
+        array('name' => $person->name, 'event' => $event->title,
+            'datetime' => mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at))
     );
     $promotions_sent = calsys_notify_promoted_waitlist($event, $promoted);
     calsys_admin_redirect('calsys-event-registrations', $cancel_sent && $promotions_sent ? 'attendee_cancelled' : 'attendee_cancelled_email_failed', $extra);
@@ -162,4 +168,4 @@ function calsys_reconcile_waitlists() {
         calsys_promote_event_waitlist((int) $id);
     }
 }
-add_action('calsys_send_due_event_reminders', 'calsys_reconcile_waitlists');
+add_action('calsys_send_due_event_reminders', 'calsys_reconcile_waitlists', 5);

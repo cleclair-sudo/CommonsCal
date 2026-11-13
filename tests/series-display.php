@@ -12,8 +12,9 @@ function calsys_table($name) { return 'wp_calsys_' . $name; }
 function calsys_get_settings() {
     return array('event_registration' => array('enabled' => 1, 'form_intro' => '', 'show_privacy_notice' => false,
         'name_label' => 'Name', 'email_label' => 'Email', 'submit_label' => 'Register',
-        'full_message' => 'Full', 'closed_message' => 'Closed', 'disabled_message' => 'Disabled', 'confirmation_message' => 'Confirmed'),
-        'notifications' => array('email_event_reminders' => false));
+        'full_message' => 'Full', 'closed_message' => 'Closed', 'disabled_message' => 'Disabled', 'confirmation_message' => 'Confirmed',
+        'reminder_label' => 'Email me a reminder'),
+        'notifications' => array('email_event_reminders' => !empty($GLOBALS['reminders_enabled'])));
 }
 function calsys_event_capacity($capacity) { return (int) $capacity; }
 function calsys_decode_registration_fields($json) { return json_decode($json, true) ?: array(); }
@@ -47,20 +48,44 @@ $wpdb->rows = array(
 );
 $html = calsys_render_event_registration_forms(array($anchor));
 expect(strpos($wpdb->sql, "e.status = 'published'") !== false, 'Series listings must exclude drafts');
-expect(strpos($html, 'All events in &lt;Book Club&gt;') !== false && strpos($html, 'Different questions') !== false && strpos($html, 'Past') !== false, 'Series listing must include published events and escape names');
+expect(substr_count($html, '<details class="calsys-series-selection">') === 1 && strpos($html, 'Events in &lt;Book Club&gt;') !== false &&
+    strpos($html, 'Different questions') !== false && strpos($html, 'Past') !== false, 'One series dropdown must list all published events and escape names');
 expect(strpos($html, 'name="series_events[]" value="2"') !== false && strpos($html, 'name="series_events[]" value="3"') === false && strpos($html, 'name="series_events[]" value="4"') === false, 'Only open events with matching questions must be selectable');
+expect(strpos($html, '<form ') < strpos($html, '<details class="calsys-series-selection">') &&
+    strpos($html, 'This event') !== false && substr_count($html, 'Not available for combined registration') === 2, 'The series dropdown must be in the form and identify the current and ineligible events');
 expect(strpos($html, 'data-calsys-select-series-events') !== false && strpos($html, 'name="all_recurrences"') !== false, 'Select all and recurrence registration controls are missing');
+expect(strpos($html, 'name="reminder_opt_in"') === false, 'The global reminder switch must hide the opt-in when disabled');
+$reminders_enabled = true;
+expect(strpos(calsys_render_event_registration_forms(array($anchor)), 'name="reminder_opt_in"') !== false, 'The global reminder switch must show the opt-in when enabled');
+$reminders_enabled = false;
 $anchor->register_all_recurrences = 0;
 expect(strpos(calsys_render_event_registration_forms(array($anchor)), 'name="all_recurrences"') === false, 'Recurring registration must be opt-in by staff');
+$anchor->registration_enabled = 0;
+$html = calsys_render_event_registration_forms(array($anchor));
+expect(substr_count($html, '<details class="calsys-series-selection">') === 1 && strpos($html, 'Different questions') !== false &&
+    strpos($html, 'name="series_events[]"') === false && strpos($html, '<form ') === false, 'Series events must remain visible without registration controls when registration is disabled');
+$anchor->registration_enabled = 1;
+$anchor->starts_at = '2026-10-01 10:00:00';
+$html = calsys_render_event_registration_forms(array($anchor));
+expect(substr_count($html, '<details class="calsys-series-selection">') === 1 && strpos($html, 'Past') !== false &&
+    strpos($html, 'name="series_events[]"') === false && strpos($html, '<form ') === false, 'Closed registration must still show the series without selection controls');
+$anchor->starts_at = '2026-12-01 10:00:00';
+$wpdb->rows = array($wpdb->rows[0], $wpdb->rows[2]);
+$html = calsys_render_event_registration_forms(array($anchor));
+expect(substr_count($html, '<details class="calsys-series-selection">') === 1 && strpos($html, 'Different questions') !== false &&
+    strpos($html, 'data-calsys-select-series-events') === false, 'A series without eligible choices must still be visible without select all');
 $wpdb->rows = null;
 expect(strpos(calsys_render_event_registration_forms(array($anchor)), 'Series events could not be loaded') !== false, 'Series lookup errors must be visible');
 $_GET = array('calsys_notice' => 'registration_results', 'calsys_registration_result' => '00000000-0000-4000-8000-000000000001');
 $results = array(
-    array('id' => 1, 'title' => 'First <event>', 'starts_at' => '2026-12-01 10:00:00', 'status' => 'registration_complete'),
+    array('id' => 1, 'title' => 'First <event>', 'starts_at' => '2026-12-01 10:00:00', 'status' => 'registration_email_failed'),
     array('id' => 2, 'title' => 'Second', 'starts_at' => '2026-12-02 10:00:00', 'status' => 'event_full'),
 );
 $notice = calsys_public_notice();
-expect(strpos($notice, 'First &lt;event&gt;') !== false && strpos($notice, 'Registered') !== false && strpos($notice, 'Full; not registered') !== false, 'Per-event results must be escaped and report successes and failures');
+expect(strpos($notice, 'First &lt;event&gt;') !== false && strpos($notice, 'Registered; confirmation email failed') !== false && strpos($notice, 'Full; not registered') !== false, 'Per-event results must distinguish a saved registration from email failure');
+$_GET = array('calsys_notice' => 'registration_email_failed');
+expect(strpos(calsys_public_notice(), 'registration is complete') !== false && strpos(calsys_public_notice(), 'could not send') !== false, 'Single-event email failure must show that registration was saved');
+$_GET = array('calsys_notice' => 'registration_results', 'calsys_registration_result' => '00000000-0000-4000-8000-000000000001');
 unset($results);
 expect(strpos(calsys_public_notice(), 'expired') !== false, 'Expired results must not look like a successful registration');
 echo "Series display passed.\n";

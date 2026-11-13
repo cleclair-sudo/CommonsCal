@@ -414,7 +414,10 @@ function calsys_delete_event($frontend = false) {
                 sprintf(__('Hello %1$s, %2$s scheduled for %3$s has been cancelled.', 'community-calendar-study-rooms'),
                     $person->name,
                     $event->title,
-                    mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at))
+                    mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at)),
+                 'event_cancelled',
+                 array('name' => $person->name, 'event' => $event->title,
+                    'datetime' => mysql2date(get_option('date_format') . ' ' . get_option('time_format'), $event->starts_at))
             );
             $email_failed = !$sent || $email_failed;
         }

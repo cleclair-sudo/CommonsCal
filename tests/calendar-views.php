@@ -2,15 +2,20 @@
 // Run with: php tests/calendar-views.php
 define('ABSPATH', __DIR__ . '/');
 function add_shortcode() {}
+function add_action() {}
 function wp_timezone() { return new DateTimeZone('America/New_York'); }
 function calsys_week_start_day() { return $GLOBALS['week_start']; }
 function sanitize_key($value) { return preg_replace('/[^a-z0-9_\-]/', '', strtolower($value)); }
 function wp_unslash($value) { return $value; }
+function sanitize_text_field($value) { return is_string($value) ? trim($value) : ''; }
 function current_time($format) { return $format === 'Y-m' ? '2026-11' : '2026-11-11'; }
 function esc_attr($value) { return htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); }
 function esc_html($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
 function esc_html_e($value) { echo esc_html($value); }
 function esc_attr_e($value) { echo esc_attr($value); }
+function esc_html__($value) { return esc_html($value); }
+function esc_attr__($value) { return esc_attr($value); }
+function esc_js($value) { return esc_attr($value); }
 function esc_url($value) { return esc_attr($value); }
 function __($value) { return $value; }
 function absint($value) { return abs((int) $value); }
@@ -20,13 +25,36 @@ function calsys_equipment_for_source() { return array(); }
 function current_user_can($capability) { return $GLOBALS['staff']; }
 function is_user_logged_in() { return $GLOBALS['logged_in']; }
 function calsys_table($name) { return 'wp_calsys_' . $name; }
-function calsys_get_settings() { return array('privacy' => array('hide_guest_room_bookings' => $GLOBALS['hide_guest_room_bookings'], 'show_room_names' => $GLOBALS['show_room_names'], 'show_room_status' => true), 'booking_rules' => $GLOBALS['booking_rules']); }
+function calsys_get_settings() { return array('privacy' => array('hide_guest_room_bookings' => $GLOBALS['hide_guest_room_bookings'], 'show_room_names' => $GLOBALS['show_room_names'], 'show_room_status' => true), 'booking_rules' => $GLOBALS['booking_rules'], 'calendar_display' => array('initial_month' => 'current'), 'event_registration' => array('confirmation_message' => '', 'disabled_message' => '', 'closed_message' => '', 'full_message' => '')); }
 function get_option($name) { return $name === 'time_format' ? 'H:i' : 'Y-m-d'; }
 function wp_date($format, $timestamp, $timezone) { return (new DateTimeImmutable('@' . $timestamp))->setTimezone($timezone)->format($format); }
-function remove_query_arg($args) { return 'https://example.org/calendar'; }
-function add_query_arg($args, $url) { return $url . '?' . http_build_query($args); }
+function remove_query_arg($args) {
+    $query = $_GET;
+    foreach ((array) $args as $key) { unset($query[$key]); }
+    return 'https://example.org/calendar' . ($query ? '?' . http_build_query($query) : '');
+}
+function add_query_arg($args, $value, $url = null) {
+    if (!is_array($args)) { $args = array($args => $value); } else { $url = $value; }
+    $query = array();
+    parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+    $query = array_merge($query, $args);
+    return strtok($url, '?') . ($query ? '?' . http_build_query($query) : '');
+}
 function wp_parse_url($url, $component) { return parse_url($url, $component); }
 function calsys_event_categories() { return array(); }
+function calsys_staff_types() { return array('meeting' => 'Meeting', 'sick_time' => 'Sick time', 'time_off' => 'Time off'); }
+function calsys_disable_calendar_page_cache() {}
+function get_permalink() { return 'https://example.org/calendar'; }
+function get_queried_object_id() { return 1; }
+function home_url($path) { return 'https://example.org' . $path; }
+function wp_login_url($url) { return 'https://example.org/login?redirect_to=' . rawurlencode($url); }
+function wp_logout_url($url) { return 'https://example.org/logout?redirect_to=' . rawurlencode($url); }
+function calsys_all_rooms() { return array(); }
+function calsys_equipment_fields() { return ''; }
+function calsys_admin_notice() {}
+function wp_nonce_field() {}
+function submit_button() {}
+function mysql2date($format, $date) { return date($format, strtotime($date)); }
 function checked($value) { if ($value) { echo 'checked'; } }
 function selected($value, $expected) { if ($value === $expected) { echo 'selected'; } }
 function sanitize_html_class($value) { return preg_replace('/[^a-zA-Z0-9_-]/', '', $value); }
@@ -36,10 +64,31 @@ function wp_strip_all_tags($value, $remove_breaks = false) { return strip_tags($
 class CalendarTestDatabase {
     public $last_error = '';
     public $query_count = 0;
-    public function prepare($sql, ...$args) { return $sql; }
+    public $staff_queries = array();
+    public $staff_entries = array();
+    public $staff_query_fails = false;
+    public function prepare($sql, ...$args) {
+        if (count($args) === 1 && is_array($args[0])) { $args = $args[0]; }
+        foreach ($args as $arg) {
+            $sql = preg_replace('/%s/', "'" . str_replace("'", "''", $arg) . "'", $sql, 1);
+        }
+        return $sql;
+    }
     public function get_var($sql) { return $GLOBALS['active_rooms'] ? 1 : null; }
     public function get_results($sql) {
         $this->query_count++;
+        if (strpos($sql, 'FROM wp_calsys_staff_calendar') !== false) {
+            $this->staff_queries[] = $sql;
+            if ($this->staff_query_fails) { return null; }
+            $entries = $this->staff_entries;
+            if (preg_match('/entry_type IN \(([^)]+)\)/', $sql, $match)) {
+                preg_match_all("/'([^']*)'/", $match[1], $types);
+                $entries = array_values(array_filter($entries, function ($entry) use ($types) {
+                    return in_array($entry->entry_type, $types[1], true);
+                }));
+            }
+            return array_map(function ($entry) { return clone $entry; }, $entries);
+        }
         if (strpos($sql, 'SELECT DISTINCT s.id, s.name') !== false) { return array(); }
         return array((object) array(
             'id' => 1, 'room_id' => 2, 'room_name' => 'Blue room', 'room_color' => '#123456',
@@ -53,6 +102,8 @@ function expect($condition, $message) {
 }
 require __DIR__ . '/../includes/calendars.php';
 require __DIR__ . '/../includes/room-hours.php';
+require __DIR__ . '/../includes/frontend-forms.php';
+require __DIR__ . '/../includes/admin-management.php';
 
 $month = new DateTimeImmutable('2026-11-01', wp_timezone());
 $date = new DateTimeImmutable('2026-11-30', wp_timezone());
@@ -77,13 +128,18 @@ $fields = calsys_calendar_hidden_query_fields(array('page_id' => '6', 'filter' =
 expect(strpos($fields, 'name="page_id" value="6"') !== false && strpos($fields, 'name="filter[x]" value="&lt;value&gt;"') !== false, 'Query parameters must be retained and escaped');
 
 $wpdb = new CalendarTestDatabase();
-$_GET = array('calsys_recurring' => 'yes', 'calsys_series' => 'no');
-$filter_sql = calsys_event_group_filter_sql();
-expect(strpos($filter_sql, "e.recurrence_group <> ''") !== false && strpos($filter_sql, 'e.series_id = 0') !== false, 'Recurrence and named series filters must apply independently');
+$_GET = array();
+expect(calsys_event_group_filter_sql() === '', 'Unchecked group filters must show all events');
+$_GET = array('calsys_recurring' => 'yes');
+expect(calsys_event_group_filter_sql() === " AND (e.recurrence_group <> '')", 'Recurring filter must show recurring events');
+$_GET = array('calsys_series' => 'yes');
+expect(calsys_event_group_filter_sql() === ' AND (e.series_id > 0)', 'Series filter must show events in a series');
+$_GET = array('calsys_recurring' => 'yes', 'calsys_series' => 'yes');
+expect(calsys_event_group_filter_sql() === " AND (e.recurrence_group <> '' OR e.series_id > 0)", 'Both filters must match either event type');
 $_GET = array('calsys_recurring' => array('yes'), 'calsys_series' => 'invalid');
 expect(calsys_event_group_filter_sql() === '', 'Invalid group filters must not alter the query');
-$_GET = array('calsys_series' => 'id_3');
-expect(strpos(calsys_event_group_filter_sql(), 'e.series_id = %d') !== false, 'A named-series filter must use a prepared ID');
+$_GET = array('calsys_recurring' => 'no', 'calsys_series' => 'id_3');
+expect(calsys_event_group_filter_sql() === '', 'Removed dropdown values must not silently apply invisible filters');
 $_GET = array();
 $booking_rules = array(
     'weekly_hours' => array_fill(0, 7, array('mode' => 'unrestricted', 'open' => '', 'close' => '')),
@@ -93,6 +149,83 @@ $staff = false;
 $logged_in = false;
 $hide_guest_room_bookings = false;
 $show_room_names = true;
+$wpdb->staff_entries = array(
+    (object) array('id' => 1, 'title' => 'Team meeting', 'entry_type' => 'meeting', 'starts_at' => '2026-11-12 10:00:00', 'ends_at' => '2026-11-12 11:00:00', 'all_day' => 0, 'room_id' => 0),
+    (object) array('id' => 2, 'title' => 'Sick day', 'entry_type' => 'sick_time', 'starts_at' => '2026-11-13 10:00:00', 'ends_at' => '2026-11-13 11:00:00', 'all_day' => 0, 'room_id' => 0),
+    (object) array('id' => 3, 'title' => 'Vacation', 'entry_type' => 'time_off', 'starts_at' => '2026-11-14 10:00:00', 'ends_at' => '2026-11-14 11:00:00', 'all_day' => 0, 'room_id' => 0),
+);
+$staff = true;
+$logged_in = true;
+foreach (array(
+    array(array(), array('Team meeting', 'Sick day', 'Vacation')),
+    array(array('meeting'), array('Team meeting')),
+    array(array('meeting', 'time_off'), array('Team meeting', 'Vacation')),
+    array(array('invalid', array('sick_time')), array('Team meeting', 'Sick day', 'Vacation')),
+) as $case) {
+    $_GET = array('page' => 'calsys-staff-calendar', 'calsys_month' => '2026-11', 'other' => 'retained', 'calsys_staff_type' => $case[0]);
+    $wpdb->staff_queries = array();
+    $html = calsys_staff_calendar_shortcode();
+    expect(count($wpdb->staff_queries) === 1, 'Staff shortcode must query its calendar once');
+    foreach (array('Team meeting', 'Sick day', 'Vacation') as $title) {
+        expect((strpos($html, $title) !== false) === in_array($title, $case[1], true), "Shortcode filter must control $title");
+    }
+    ob_start();
+    calsys_admin_staff_calendar_page();
+    $admin_html = ob_get_clean();
+    expect(count($wpdb->staff_queries) === 3, 'Dashboard must query both the grid and upcoming entries');
+    foreach (array('Team meeting', 'Sick day', 'Vacation') as $title) {
+        expect(substr_count($admin_html, $title) === (in_array($title, $case[1], true) ? 3 : 0), "Dashboard filter must control grid and upcoming list for $title");
+    }
+}
+$_GET = array('page' => 'calsys-staff-calendar', 'calsys_month' => '2026-11', 'other' => 'retained', 'calsys_staff_type' => array('meeting', 'meeting', 'time_off', 'invalid', array('sick_time')));
+expect(calsys_selected_staff_types() === array('meeting', 'time_off'), 'Staff types must reject invalid or nested values and remove duplicates');
+expect(calsys_staff_type_sql() === " AND entry_type IN ('meeting', 'time_off')", 'Staff types must use prepared OR-style SQL');
+$_GET['calsys_staff_type'] = 'sick_time';
+expect(calsys_selected_staff_types() === array('sick_time'), 'A valid scalar staff type must be accepted');
+$_GET['calsys_staff_type'] = array('meeting', 'meeting', 'time_off', 'invalid', array('sick_time'));
+$html = calsys_render_calendar('Staff', array(), $month, 'staff');
+expect(strpos($html, 'name="page" value="calsys-staff-calendar"') !== false && strpos($html, 'name="other" value="retained"') !== false, 'Filter submission must retain dashboard page and unrelated parameters');
+expect(strpos($html, 'name="calsys_month" value="2026-11"') !== false && strpos($html, 'name="calsys_staff_type[0]"') === false, 'Filter submission must preserve month without stale hidden selections');
+foreach (array('meeting' => true, 'sick_time' => false, 'time_off' => true) as $type => $is_checked) {
+    expect((bool) preg_match('/<input type="checkbox" name="calsys_staff_type\[\]" value="' . $type . '"[^>]*>/', $html, $input), 'Each configured staff type must have a checkbox');
+    expect((strpos($input[0], 'checked') !== false) === $is_checked, 'Staff type checkboxes must reflect valid selections');
+}
+expect(strpos($html, 'data-calsys-auto-submit') !== false && strpos($html, 'Apply filters') !== false, 'Staff filters must support automatic and manual submission');
+preg_match('/<a href="([^"]+)" aria-label="Previous period"/', $html, $previous);
+parse_str((string) parse_url(html_entity_decode($previous[1]), PHP_URL_QUERY), $previous_query);
+expect($previous_query['calsys_staff_type'][0] === 'meeting' && $previous_query['calsys_month'] === '2026-10' && $previous_query['other'] === 'retained', 'Month navigation must retain filters and unrelated parameters');
+preg_match('/<a href="([^"]+)">Clear filters<\/a>/', $html, $clear);
+parse_str((string) parse_url(html_entity_decode($clear[1]), PHP_URL_QUERY), $clear_query);
+expect(!isset($clear_query['calsys_staff_type']) && $clear_query['page'] === 'calsys-staff-calendar' && $clear_query['calsys_month'] === '2026-11' && $clear_query['other'] === 'retained', 'Clear must retain the page, month and unrelated parameters');
+$access = calsys_staff_access_link('staff');
+preg_match('/href="([^"]+)"/', $access, $logout);
+parse_str((string) parse_url(html_entity_decode($logout[1]), PHP_URL_QUERY), $logout_query);
+parse_str((string) parse_url($logout_query['redirect_to'], PHP_URL_QUERY), $return_query);
+expect($return_query['calsys_staff_type'] === array('meeting', 'time_off') && $return_query['calsys_month'] === '2026-11', 'Logout return must retain valid staff filters and month');
+$logged_in = false;
+$staff = false;
+$access = calsys_staff_access_link();
+preg_match('/href="([^"]+)"/', $access, $login);
+parse_str((string) parse_url(html_entity_decode($login[1]), PHP_URL_QUERY), $login_query);
+parse_str((string) parse_url($login_query['redirect_to'], PHP_URL_QUERY), $return_query);
+expect($return_query['calsys_staff_type'] === array('meeting', 'time_off'), 'Login return must retain valid staff filters');
+expect(strpos(calsys_staff_calendar_shortcode(), 'available to staff only') !== false, 'Staff filters must not bypass access checks');
+$staff = true;
+$wpdb->staff_query_fails = true;
+expect(strpos(calsys_staff_calendar_shortcode(), 'could not be loaded') !== false, 'Staff query errors must be visible');
+$wpdb->staff_query_fails = false;
+$staff = false;
+$logged_in = false;
+foreach (array(array(), array('calsys_recurring' => 'yes'), array('calsys_series' => 'yes'), array('calsys_recurring' => 'yes', 'calsys_series' => 'yes')) as $filters) {
+    $_GET = $filters;
+    $html = calsys_render_calendar('Calendar', array(), $month, 'events', 'month', $month, true);
+    foreach (array('calsys_recurring', 'calsys_series') as $filter) {
+        expect((bool) preg_match('/<input type="checkbox" name="' . $filter . '" value="yes"[^>]*>/', $html, $input), "$filter must be a checkbox");
+        expect((strpos($input[0], 'checked') !== false) === isset($filters[$filter]), "$filter must reflect its selected state");
+        expect(strpos($html, '<select name="' . $filter . '"') === false, "$filter must not be a dropdown");
+    }
+}
+$_GET = array();
 $entries = calsys_room_calendar_entries($month, $month->modify('+1 month'));
 expect($entries[0]->room_color === '#123456' && $entries[0]->title === 'Blue room', 'Visible rooms must retain their individual color');
 $show_room_names = false;
